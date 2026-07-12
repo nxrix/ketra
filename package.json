@@ -26,6 +26,7 @@
     "qiskit",
     "simulation",
     "statevector",
+    "qasm",
     "vqe",
     "qaoa",
     "grover",
