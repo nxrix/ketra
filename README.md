@@ -10,7 +10,7 @@ A JavaScript quantum computing framework inspired by Qiskit
 - Noise models
 - OpenQASM 2 & 3 support
 - Transpiler & DAG circuits
-- Visualization, optimizers & primitives
+- Visualization ( incomplete ), optimizers & primitives
 
 ## Quick start
 
