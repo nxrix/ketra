@@ -3,13 +3,10 @@
   "version": "1.2.0",
   "description": "A quantum computing framework for JavaScript inspired by Qiskit",
   "type": "module",
-  "main": "./src/index.js",
-  "module": "./src/index.js",
+  "main": "./dist/ketra.js",
+  "module": "./dist/ketra.js",
   "exports": {
-    ".": {
-      "import": "./src/index.js",
-      "require": "./dist/ketra.js"
-    }
+    ".": "./dist/ketra.js"
   },
   "browser": "./dist/ketra.js",
   "unpkg": "./dist/ketra.min.js",
