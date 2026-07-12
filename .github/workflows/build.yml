@@ -39,7 +39,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add dist/
+          git add dist package-lock.json
           git commit -m "Build: Done" || echo "Build: No changes to commit"
           git pull --rebase
           git push
