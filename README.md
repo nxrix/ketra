@@ -1,8 +1,26 @@
 # Ketra
 
-A JavaScript quantum computing framework inspired by Qiskit and built with AI.
+A JavaScript quantum computing framework inspired by Qiskit
+
+## Features
+
+- Quantum circuits & simulation
+- Quantum algorithms (Grover, VQE, QAOA, HHL, Shor...)
+- Statevector, Density Matrix & quantum information
+- Noise models
+- OpenQASM 2 & 3 support
+- Transpiler & DAG circuits
+- Visualization, optimizers & primitives
 
 ## Quick start
+
+```
+npm install "@nxrix/ketra"
+```
+or
+```js
+import * as ketra from "https://cdn.jsdelivr.net/npm/@nxrix/ketra@1.2.0/+esm"
+```
 
 ### Bell state
 
