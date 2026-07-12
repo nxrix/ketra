@@ -1,6 +1,6 @@
 {
   "name": "@nxrix/ketra",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "A JavaScript quantum computing framework inspired by Qiskit",
   "type": "module",
   "main": "./dist/ketra.js",
@@ -11,7 +11,7 @@
   "browser": "./dist/ketra.js",
   "unpkg": "./dist/ketra.min.js",
   "files": [
-    "dist/",
+    "dist/*.js",
     "README.md",
     "LICENSE"
   ],
