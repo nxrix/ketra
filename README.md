@@ -31,7 +31,7 @@ npm install "@nxrix/ketra"
 or
 ```html
 <script type="module">
-  import * as ketra from "https://cdn.jsdelivr.net/npm/@nxrix/ketra@1.2.1/+esm";
+  import * as ketra from "https://cdn.jsdelivr.net/npm/@nxrix/ketra@1.2.2/+esm";
 </script>
 ```
 
