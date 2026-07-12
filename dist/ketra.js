@@ -3939,6 +3939,406 @@ _registerExtraGateClass("MCRYGate", MCRYGate);
 _registerExtraGateClass("MCRZGate", MCRZGate);
 _registerExtraGateClass("MCMTGate", MCMTGate);
 
+// src/library/boolean_logic.js
+var ANDGate = class _ANDGate extends Gate {
+  constructor(numInputQubits) {
+    super("and", numInputQubits + 1, []);
+    this._numInput = numInputQubits;
+    this._matrixBuilder = () => {
+      const dim = 1 << numInputQubits + 1;
+      const m = ComplexMatrix_identity(dim);
+      const allOnesInputs = (1 << numInputQubits) - 1;
+      const allOnesWithOutput = allOnesInputs | 1 << numInputQubits;
+      const tmp = m.get(allOnesInputs, allOnesInputs);
+      m.set(allOnesInputs, allOnesInputs, m.get(allOnesWithOutput, allOnesWithOutput));
+      m.set(allOnesWithOutput, allOnesWithOutput, tmp);
+      const m2 = ComplexMatrix_identity(dim);
+      m2.set(allOnesInputs, allOnesInputs, ZERO2);
+      m2.set(allOnesWithOutput, allOnesWithOutput, ZERO2);
+      m2.set(allOnesInputs, allOnesWithOutput, ONE2);
+      m2.set(allOnesWithOutput, allOnesInputs, ONE2);
+      return m2;
+    };
+  }
+  copy() {
+    return new _ANDGate(this._numInput);
+  }
+};
+var ZERO2 = new Complex(0, 0);
+var ONE2 = new Complex(1, 0);
+function ComplexMatrix_identity(n) {
+  return ComplexMatrix2.identity(n);
+}
+var ORGate = class _ORGate extends Gate {
+  constructor(numInputQubits) {
+    super("or", numInputQubits + 1, []);
+    this._numInput = numInputQubits;
+    this._matrixBuilder = () => {
+      const dim = 1 << numInputQubits + 1;
+      const m = ComplexMatrix2.identity(dim);
+      for (let inputs = 0; inputs < 1 << numInputQubits; inputs++) {
+        if (inputs === 0) continue;
+        const output0 = inputs;
+        const output1 = inputs | 1 << numInputQubits;
+        m.set(output0, output0, ZERO2);
+        m.set(output1, output1, ZERO2);
+        m.set(output0, output1, ONE2);
+        m.set(output1, output0, ONE2);
+      }
+      return m;
+    };
+  }
+  copy() {
+    return new _ORGate(this._numInput);
+  }
+};
+var XORGate = class _XORGate extends Gate {
+  constructor(numInputQubits) {
+    super("xor", numInputQubits + 1, []);
+    this._numInput = numInputQubits;
+    this._matrixBuilder = () => {
+      const dim = 1 << numInputQubits + 1;
+      const m = ComplexMatrix2.zeros(dim, dim);
+      for (let i = 0; i < dim; i++) {
+        const inputs = i & (1 << numInputQubits) - 1;
+        const output = i >> numInputQubits & 1;
+        const popcount = _popcount(inputs);
+        const newOutput = output ^ popcount & 1;
+        const j = inputs | newOutput << numInputQubits;
+        m.set(j, i, ONE2);
+      }
+      return m;
+    };
+  }
+  copy() {
+    return new _XORGate(this._numInput);
+  }
+};
+function _popcount(x) {
+  let count = 0;
+  while (x) {
+    count += x & 1;
+    x >>= 1;
+  }
+  return count;
+}
+var NANDGate = class _NANDGate extends Gate {
+  constructor(numInputQubits) {
+    super("nand", numInputQubits + 1, []);
+    this._numInput = numInputQubits;
+    this._matrixBuilder = () => {
+      const dim = 1 << numInputQubits + 1;
+      const m = ComplexMatrix2.identity(dim);
+      const allOnes = (1 << numInputQubits) - 1;
+      for (let inputs = 0; inputs < 1 << numInputQubits; inputs++) {
+        if (inputs === allOnes) continue;
+        const output0 = inputs;
+        const output1 = inputs | 1 << numInputQubits;
+        m.set(output0, output0, ZERO2);
+        m.set(output1, output1, ZERO2);
+        m.set(output0, output1, ONE2);
+        m.set(output1, output0, ONE2);
+      }
+      return m;
+    };
+  }
+  copy() {
+    return new _NANDGate(this._numInput);
+  }
+};
+var NORGate = class _NORGate extends Gate {
+  constructor(numInputQubits) {
+    super("nor", numInputQubits + 1, []);
+    this._numInput = numInputQubits;
+    this._matrixBuilder = () => {
+      const dim = 1 << numInputQubits + 1;
+      const m = ComplexMatrix2.identity(dim);
+      const output0 = 0;
+      const output1 = 1 << numInputQubits;
+      m.set(output0, output0, ZERO2);
+      m.set(output1, output1, ZERO2);
+      m.set(output0, output1, ONE2);
+      m.set(output1, output0, ONE2);
+      return m;
+    };
+  }
+  copy() {
+    return new _NORGate(this._numInput);
+  }
+};
+var XNORGate = class _XNORGate extends Gate {
+  constructor(numInputQubits) {
+    super("xnor", numInputQubits + 1, []);
+    this._numInput = numInputQubits;
+    this._matrixBuilder = () => {
+      const dim = 1 << numInputQubits + 1;
+      const m = ComplexMatrix2.zeros(dim, dim);
+      for (let i = 0; i < dim; i++) {
+        const inputs = i & (1 << numInputQubits) - 1;
+        const output = i >> numInputQubits & 1;
+        const popcount = _popcount(inputs);
+        const newOutput = output ^ (popcount & 1 ? 0 : 1);
+        const j = inputs | newOutput << numInputQubits;
+        m.set(j, i, ONE2);
+      }
+      return m;
+    };
+  }
+  copy() {
+    return new _XNORGate(this._numInput);
+  }
+};
+_registerExtraGateClass("ANDGate", ANDGate);
+_registerExtraGateClass("ORGate", ORGate);
+_registerExtraGateClass("XORGate", XORGate);
+_registerExtraGateClass("NANDGate", NANDGate);
+_registerExtraGateClass("NORGate", NORGate);
+_registerExtraGateClass("XNORGate", XNORGate);
+function mcxVChain(circuit, controls, target, ancillae) {
+  const n = controls.length;
+  if (n <= 1) {
+    throw new Error("MCXVChain requires at least 2 controls");
+  }
+  if (n === 2) {
+    circuit.ccx(controls[0], controls[1], target);
+    return;
+  }
+  if (ancillae.length < n - 2) {
+    throw new Error(`MCXVChain requires ${n - 2} ancillae, got ${ancillae.length}`);
+  }
+  const chain = [];
+  let last = controls[0];
+  for (let i = 1; i < n - 1; i++) {
+    const anc = ancillae[i - 1];
+    circuit.ccx(last, controls[i], anc);
+    chain.push([last, controls[i], anc]);
+    last = anc;
+  }
+  circuit.ccx(last, controls[n - 1], target);
+  for (let i = chain.length - 1; i >= 0; i--) {
+    const [a, b, c] = chain[i];
+    circuit.ccx(a, b, c);
+  }
+}
+function mcxRecursive(circuit, controls, target, ancilla) {
+  const n = controls.length;
+  if (n <= 2) {
+    if (n === 1) circuit.cx(controls[0], target);
+    else if (n === 2) circuit.ccx(controls[0], controls[1], target);
+    return;
+  }
+  if (ancilla === void 0) {
+    throw new Error("MCXRecursive requires 1 ancilla for n > 2");
+  }
+  const half = Math.floor(n / 2);
+  const firstHalf = controls.slice(0, half);
+  const secondHalf = controls.slice(half);
+  if (firstHalf.length === 1) {
+    circuit.cx(firstHalf[0], ancilla);
+  } else {
+    mcxRecursive(circuit, firstHalf, ancilla, null);
+  }
+  const combinedControls = secondHalf.concat([ancilla]);
+  if (combinedControls.length === 1) {
+    circuit.cx(combinedControls[0], target);
+  } else if (combinedControls.length === 2) {
+    circuit.ccx(combinedControls[0], combinedControls[1], target);
+  } else {
+    mcxVChain(circuit, combinedControls, target, []);
+  }
+  if (firstHalf.length === 1) {
+    circuit.cx(firstHalf[0], ancilla);
+  } else {
+    mcxRecursive(circuit, firstHalf, ancilla, null);
+  }
+}
+function mcxNoAncilla(circuit, controls, target) {
+  const n = controls.length;
+  if (n <= 2) {
+    if (n === 1) circuit.cx(controls[0], target);
+    else if (n === 2) circuit.ccx(controls[0], controls[1], target);
+    return;
+  }
+  circuit.mcx(controls, target);
+}
+
+// src/library/arithmetic.js
+var arithmetic_exports = {};
+__export(arithmetic_exports, {
+  cdkmRippleCarryAdder: () => cdkmRippleCarryAdder,
+  draperQFTAdder: () => draperQFTAdder,
+  functionalPauliRotations: () => functionalPauliRotations,
+  hrsCumulativeMultiplier: () => hrsCumulativeMultiplier,
+  integerComparator: () => integerComparator,
+  linearPauliRotations: () => linearPauliRotations,
+  quadraticForm: () => quadraticForm,
+  weightedAdder: () => weightedAdder
+});
+function linearPauliRotations(numStateQubits, slopes, offset = 0, numTargetQubits = 1) {
+  if (slopes.length !== numStateQubits) {
+    throw new Error("linearPauliRotations: slopes length must equal numStateQubits");
+  }
+  const totalQubits = numStateQubits + numTargetQubits;
+  const qc = new QuantumCircuit(totalQubits);
+  const targetStart = numStateQubits;
+  if (offset !== 0) {
+    qc.rz(2 * offset, targetStart);
+  }
+  for (let i = 0; i < numStateQubits; i++) {
+    if (slopes[i] === 0) continue;
+    const angle = 2 * slopes[i] * (1 << i);
+    qc.crz(angle, i, targetStart);
+  }
+  return qc;
+}
+function quadraticForm(numStateQubits, quadratic = null, linear = null, offset = 0, numTargetQubits = 1) {
+  const A = quadratic || Array(numStateQubits).fill(0).map(() => Array(numStateQubits).fill(0));
+  const b = linear || Array(numStateQubits).fill(0);
+  const totalQubits = numStateQubits + numTargetQubits;
+  const qc = new QuantumCircuit(totalQubits);
+  const targetStart = numStateQubits;
+  if (offset !== 0) {
+    qc.rz(2 * offset, targetStart);
+  }
+  for (let i = 0; i < numStateQubits; i++) {
+    if (b[i] === 0) continue;
+    qc.crz(2 * b[i] * (1 << i), i, targetStart);
+  }
+  for (let i = 0; i < numStateQubits; i++) {
+    for (let j = i; j < numStateQubits; j++) {
+      if (A[i][j] === 0) continue;
+      if (i === j) {
+        qc.crz(2 * A[i][j] * (1 << i), i, targetStart);
+      } else {
+        const angle = 2 * A[i][j] * (1 << i) * (1 << j);
+        qc.cp(angle, i, j);
+      }
+    }
+  }
+  return qc;
+}
+function integerComparator(numStateQubits, value = 0, geq = true) {
+  const totalQubits = numStateQubits + 1;
+  const qc = new QuantumCircuit(totalQubits);
+  const resultQubit = numStateQubits;
+  if (geq) {
+    qc.x(resultQubit);
+  }
+  for (let i = numStateQubits - 1; i >= 0; i--) {
+    const valueBit = value >> i & 1;
+    if (valueBit === 0) {
+      qc.cx(i, resultQubit);
+    } else {
+    }
+  }
+  return qc;
+}
+function weightedAdder(numStateQubits, weights = null, numSumQubits = null) {
+  const w = weights || Array(numStateQubits).fill(1);
+  const maxSum = w.reduce((a, b) => a + b, 0);
+  const ns = numSumQubits || Math.max(1, Math.ceil(Math.log2(maxSum + 1)));
+  const totalQubits = numStateQubits + ns;
+  const qc = new QuantumCircuit(totalQubits);
+  const sumStart = numStateQubits;
+  for (let i = 0; i < ns; i++) {
+    qc.h(sumStart + i);
+    for (let j = i + 1; j < ns; j++) {
+      qc.cp(Math.PI / Math.pow(2, j - i), sumStart + i, sumStart + j);
+    }
+  }
+  for (let i = 0; i < numStateQubits; i++) {
+    if (w[i] === 0) continue;
+    for (let k = 0; k < ns; k++) {
+      const angle = 2 * Math.PI * w[i] / Math.pow(2, k + 1);
+      if (Math.abs(angle) > 1e-12) {
+        qc.cp(angle, i, sumStart + ns - 1 - k);
+      }
+    }
+  }
+  for (let i = ns - 1; i >= 0; i--) {
+    for (let j = ns - 1; j > i; j--) {
+      qc.cp(-Math.PI / Math.pow(2, j - i), sumStart + i, sumStart + j);
+    }
+    qc.h(sumStart + i);
+  }
+  return qc;
+}
+function draperQFTAdder(numStateQubits) {
+  const totalQubits = 2 * numStateQubits;
+  const qc = new QuantumCircuit(totalQubits);
+  const aStart = 0;
+  const bStart = numStateQubits;
+  for (let i = 0; i < numStateQubits; i++) {
+    qc.h(bStart + i);
+    for (let j = i + 1; j < numStateQubits; j++) {
+      qc.cp(Math.PI / Math.pow(2, j - i), bStart + i, bStart + j);
+    }
+  }
+  for (let i = 0; i < numStateQubits; i++) {
+    for (let j = 0; j <= i; j++) {
+      const angle = Math.PI / Math.pow(2, i - j);
+      qc.cp(angle, aStart + numStateQubits - 1 - j, bStart + numStateQubits - 1 - i);
+    }
+  }
+  for (let i = numStateQubits - 1; i >= 0; i--) {
+    for (let j = numStateQubits - 1; j > i; j--) {
+      qc.cp(-Math.PI / Math.pow(2, j - i), bStart + i, bStart + j);
+    }
+    qc.h(bStart + i);
+  }
+  return qc;
+}
+function cdkmRippleCarryAdder(numStateQubits) {
+  const totalQubits = 2 * numStateQubits + 1;
+  const qc = new QuantumCircuit(totalQubits);
+  const aStart = 0;
+  const bStart = numStateQubits;
+  const carryQubit = 2 * numStateQubits;
+  for (let i = 0; i < numStateQubits; i++) {
+    const a = aStart + i;
+    const b = bStart + i;
+    const c = i === 0 ? carryQubit : bStart + i - 1;
+    qc.cx(a, c);
+    qc.cx(a, b);
+    qc.ccx(b, c, a);
+  }
+  return qc;
+}
+function hrsCumulativeMultiplier(numStateQubits) {
+  const totalQubits = 3 * numStateQubits + 1;
+  const qc = new QuantumCircuit(totalQubits);
+  const aStart = 0;
+  const bStart = numStateQubits;
+  const prodStart = 2 * numStateQubits;
+  const carryQubit = 3 * numStateQubits;
+  for (let i = 0; i < numStateQubits; i++) {
+    for (let j = 0; j < numStateQubits; j++) {
+      if (i + j >= numStateQubits) break;
+      qc.ccx(bStart + i, aStart + j, prodStart + i + j);
+    }
+  }
+  return qc;
+}
+function functionalPauliRotations(numStateQubits, breakpoints, slopes, offsets, numTargetQubits = 1) {
+  const totalQubits = numStateQubits + numTargetQubits;
+  const qc = new QuantumCircuit(totalQubits);
+  const targetStart = numStateQubits;
+  for (let seg = 0; seg < slopes.length; seg++) {
+    const slope = slopes[seg];
+    const offset = offsets[seg] || 0;
+    if (slope === 0 && offset === 0) continue;
+    if (offset !== 0) {
+      qc.rz(2 * offset, targetStart);
+    }
+    for (let i = 0; i < numStateQubits; i++) {
+      if (slope === 0) continue;
+      const angle = 2 * slope * (1 << i);
+      qc.crz(angle, i, targetStart);
+    }
+  }
+  return qc;
+}
+
 // src/library/circuits.js
 var circuits_exports = {};
 __export(circuits_exports, {
@@ -9159,6 +9559,136 @@ function _decomposeZYZ2(m) {
   }
   return { theta, phi, lambda };
 }
+var BasisTranslator = class extends TransformationPass {
+  constructor(targetBasis = ["cx", "u3", "u1"], basisGates = null) {
+    super();
+    this.target_basis = targetBasis;
+    this.basis_gates = basisGates || targetBasis;
+  }
+  run(dag) {
+    const opNodes = dag.topological_op_nodes();
+    for (const node of opNodes) {
+      if (this.target_basis.includes(node.op.name)) continue;
+      const decomposition = _getBasisDecomposition(node.op, this.target_basis);
+      if (decomposition === null) continue;
+      const subDag = new DAGCircuit();
+      const numQubits = node.qargs.length;
+      const numClbits = node.cargs.length;
+      if (numQubits > 0) subDag.add_qreg(new QuantumRegister(numQubits, "q"));
+      if (numClbits > 0) subDag.add_creg(new ClassicalRegister(numClbits, "c"));
+      for (const [op, qargs, cargs] of decomposition) {
+        const mappedQargs = qargs.map((q, i) => {
+          if (q && q._placeholderIdx !== void 0) return subDag.qubits[q._placeholderIdx];
+          const idx = node.qargs.indexOf(q);
+          return idx >= 0 ? subDag.qubits[idx] : subDag.qubits[i];
+        });
+        const mappedCargs = cargs.map((c, i) => {
+          const idx = node.cargs.indexOf(c);
+          return idx >= 0 ? subDag.clbits[idx] : subDag.clbits[i];
+        });
+        subDag.apply_operation(op.copy(), mappedQargs, mappedCargs);
+      }
+      try {
+        dag.substitute_node_with_dag(node, subDag);
+      } catch (e) {
+      }
+    }
+    return dag;
+  }
+};
+function _getBasisDecomposition(op, targetBasis) {
+  const name = op.name.toLowerCase();
+  const placeholder = (idx) => ({ _placeholderIdx: idx });
+  if (name === "h" && (targetBasis.includes("u3") || targetBasis.includes("u"))) {
+    const uName = targetBasis.includes("u3") ? "u3" : "u";
+    const uGate = makeU3Gate(Math.PI / 2, 0, Math.PI);
+    return [[uGate, [placeholder(0)], []]];
+  }
+  if (name === "s" && targetBasis.includes("u1")) {
+    return [[makeU1Gate(Math.PI / 2), [placeholder(0)], []]];
+  }
+  if (name === "sdg" && targetBasis.includes("u1")) {
+    return [[makeU1Gate(-Math.PI / 2), [placeholder(0)], []]];
+  }
+  if (name === "t" && targetBasis.includes("u1")) {
+    return [[makeU1Gate(Math.PI / 4), [placeholder(0)], []]];
+  }
+  if (name === "tdg" && targetBasis.includes("u1")) {
+    return [[makeU1Gate(-Math.PI / 4), [placeholder(0)], []]];
+  }
+  if (name === "rx" && targetBasis.includes("u3")) {
+    const theta = typeof op.params[0] === "number" ? op.params[0] : 0;
+    return [[makeU3Gate(theta, -Math.PI / 2, Math.PI / 2), [placeholder(0)], []]];
+  }
+  if (name === "ry" && targetBasis.includes("u3")) {
+    const theta = typeof op.params[0] === "number" ? op.params[0] : 0;
+    return [[makeU3Gate(theta, 0, 0), [placeholder(0)], []]];
+  }
+  if (name === "rz" && targetBasis.includes("u1")) {
+    const theta = typeof op.params[0] === "number" ? op.params[0] : 0;
+    return [[makeU1Gate(theta), [placeholder(0)], []]];
+  }
+  if (name === "swap" && targetBasis.includes("cx")) {
+    const cx = CXGate.copy();
+    const q0 = placeholder(0);
+    const q1 = placeholder(1);
+    return [
+      [cx, [q0, q1], []],
+      [cx.copy(), [q1, q0], []],
+      [cx.copy(), [q0, q1], []]
+    ];
+  }
+  if (name === "cz" && targetBasis.includes("cx") && targetBasis.includes("u3")) {
+    const cx = CXGate.copy();
+    const h = makeU3Gate(Math.PI / 2, 0, Math.PI);
+    const q0 = placeholder(0);
+    const q1 = placeholder(1);
+    return [
+      [h, [q1], []],
+      [cx, [q0, q1], []],
+      [h.copy(), [q1], []]
+    ];
+  }
+  if (name === "cy" && targetBasis.includes("cx") && targetBasis.includes("u1")) {
+    const cx = CXGate.copy();
+    const s = makeU1Gate(Math.PI / 2);
+    const sdg = makeU1Gate(-Math.PI / 2);
+    const q0 = placeholder(0);
+    const q1 = placeholder(1);
+    return [
+      [sdg, [q1], []],
+      [cx, [q0, q1], []],
+      [s, [q1], []]
+    ];
+  }
+  if (name === "ccx" && targetBasis.includes("cx") && targetBasis.includes("u3")) {
+    const cx = CXGate.copy();
+    const h = makeU3Gate(Math.PI / 2, 0, Math.PI);
+    const t = makeU1Gate(Math.PI / 4);
+    const tdg = makeU1Gate(-Math.PI / 4);
+    const q0 = placeholder(0);
+    const q1 = placeholder(1);
+    const q2 = placeholder(2);
+    return [
+      [h, [q2], []],
+      [cx, [q1, q2], []],
+      [tdg, [q2], []],
+      [cx.copy(), [q0, q2], []],
+      [t, [q2], []],
+      [cx.copy(), [q1, q2], []],
+      [tdg, [q2], []],
+      [cx.copy(), [q0, q2], []],
+      [t, [q2], []],
+      [h, [q2], []],
+      [t, [q1], []],
+      [cx.copy(), [q0, q1], []],
+      [t, [q0], []],
+      [tdg, [q1], []],
+      [cx.copy(), [q0, q1], []]
+    ];
+  }
+  return null;
+}
 
 // src/dagcircuit/dag_passes.js
 function collect_1q_runs2(dag) {
@@ -10971,6 +11501,124 @@ function qasm3_parse(source) {
   return parser.parse();
 }
 
+// src/qasm/qasm3_exporter.js
+function _formatNumber(n) {
+  if (Math.abs(n - Math.PI) < 1e-12) return "pi";
+  if (Math.abs(n + Math.PI) < 1e-12) return "-pi";
+  if (Math.abs(n - Math.PI / 2) < 1e-12) return "pi/2";
+  if (Math.abs(n + Math.PI / 2) < 1e-12) return "-pi/2";
+  if (Math.abs(n - Math.PI / 4) < 1e-12) return "pi/4";
+  if (Math.abs(n + Math.PI / 4) < 1e-12) return "-pi/4";
+  if (Math.abs(n - Math.PI / 8) < 1e-12) return "pi/8";
+  if (Math.abs(n + Math.PI / 8) < 1e-12) return "-pi/8";
+  if (Math.abs(n - 3 * Math.PI / 2) < 1e-12) return "3*pi/2";
+  if (Math.abs(n - 2 * Math.PI) < 1e-12) return "2*pi";
+  if (Number.isInteger(n)) return n.toString();
+  const piMultiple = n / Math.PI;
+  if (Math.abs(piMultiple - Math.round(piMultiple)) < 1e-9) {
+    return Math.round(piMultiple) === 1 ? "pi" : `${Math.round(piMultiple)}*pi`;
+  }
+  return n.toString();
+}
+function _formatParam2(p) {
+  if (typeof p === "number") return _formatNumber(p);
+  if (p && typeof p.toString === "function") return p.toString();
+  return String(p);
+}
+var QASM3Exporter = class {
+  constructor(options = {}) {
+    this.includes = options.includes || ["stdgates.inc"];
+    this.disable_extension_clause = options.disable_extension_clause || false;
+    this.use_modern_syntax = options.use_modern_syntax !== false;
+  }
+  export(circuit) {
+    const lines = [];
+    lines.push("OPENQASM 3.0;");
+    lines.push('include "stdgates.inc";');
+    if (circuit.global_phase && Math.abs(circuit.global_phase) > 1e-12) {
+      lines.push(`// global phase = ${_formatNumber(circuit.global_phase)}`);
+    }
+    const qrName = circuit.qregs.length > 0 ? circuit.qregs[0].name : "q";
+    const crName = circuit.cregs.length > 0 ? circuit.cregs[0].name : "c";
+    if (circuit.num_qubits > 0) {
+      if (this.use_modern_syntax) {
+        lines.push(`qubit[${circuit.num_qubits}] ${qrName};`);
+      } else {
+        lines.push(`qreg ${qrName}[${circuit.num_qubits}];`);
+      }
+    }
+    if (circuit.num_clbits > 0) {
+      if (this.use_modern_syntax) {
+        lines.push(`bit[${circuit.num_clbits}] ${crName};`);
+      } else {
+        lines.push(`creg ${crName}[${circuit.num_clbits}];`);
+      }
+    }
+    const qRef = (q) => `${qrName}[${circuit.qubit_indices(q)}]`;
+    const cRef = (c) => `${crName}[${circuit.clbit_indices(c)}]`;
+    const customGates = /* @__PURE__ */ new Set();
+    for (const ci of circuit.data) {
+      const op = ci.operation;
+      const name = op.name;
+      const params = op.params || [];
+      const qargs = ci.qubits.map(qRef).join(",");
+      const cargs = ci.clbits.map(cRef).join(",");
+      if (name === "barrier") {
+        const qList = ci.qubits.map(qRef).join(",");
+        lines.push(`barrier ${qList};`);
+        continue;
+      }
+      if (name === "measure") {
+        lines.push(`${cRef(ci.clbits[0])} = measure ${qRef(ci.qubits[0])};`);
+        continue;
+      }
+      if (name === "reset") {
+        lines.push(`reset ${qRef(ci.qubits[0])};`);
+        continue;
+      }
+      if (name === "delay") {
+        lines.push(`// delay ${params[0]} ${params[1] || "dt"} on ${qargs}`);
+        continue;
+      }
+      if (name === "if_else" || name === "while_loop") {
+        continue;
+      }
+      const paramStr = params.length > 0 ? `(${params.map((p) => _formatParam2(p)).join(",")})` : "";
+      let qasmName = name;
+      if (name === "u") qasmName = "u3";
+      if (name === "p") qasmName = "u1";
+      if (name === "cu") qasmName = "cu3";
+      if (name === "cu" && params.length === 4) {
+        const [t, p, l, g] = params;
+        const pStr = `(${_formatParam2(t)},${_formatParam2(p)},${_formatParam2(l)})`;
+        if (Math.abs(_paramToNum(g)) > 1e-12) {
+          lines.push(`// global phase ${_formatParam2(g)} on next gate`);
+        }
+        lines.push(`cu3${pStr} ${qargs};`);
+        continue;
+      }
+      const cond = op.condition;
+      let condPrefix = "";
+      if (cond) {
+        condPrefix = `if (${cond.register}[${cond.index}] == ${cond.value}) `;
+      }
+      lines.push(`${condPrefix}${qasmName}${paramStr} ${qargs};`);
+    }
+    return lines.join("\n");
+  }
+};
+function _paramToNum(p) {
+  if (typeof p === "number") return p;
+  if (p && typeof p.bind === "function") {
+    return 0;
+  }
+  return 0;
+}
+function qasm3_export(circuit, options = {}) {
+  const exporter = new QASM3Exporter(options);
+  return exporter.export(circuit);
+}
+
 // src/primitives/primitives.js
 var BaseEstimator = class {
   constructor(options = {}) {
@@ -11081,6 +11729,112 @@ var Sampler = class extends BaseSampler {
       }
     }
     return new SamplerResult(quasiDists, metadata);
+  }
+};
+var PrimitiveResultV2 = class {
+  constructor(results) {
+    this.results = results;
+  }
+};
+var EstimatorResultV2 = class {
+  constructor(evs, stds, metadata = {}) {
+    this.evs = evs;
+    this.stds = stds;
+    this.metadata = metadata;
+  }
+};
+var SamplerResultV2 = class {
+  constructor(pub_results, metadata = {}) {
+    this.pub_results = pub_results;
+    this.metadata = metadata;
+  }
+};
+var PrimitivePubResult = class {
+  constructor(data, metadata = {}) {
+    this.data = data;
+    this.metadata = metadata;
+  }
+};
+var EstimatorV2 = class extends BaseEstimator {
+  constructor(options = {}) {
+    super(options);
+    this.default_precision = options.default_precision || 0;
+    this.default_shots = options.default_shots || 1024;
+  }
+  run(pubs, options = {}) {
+    if (!Array.isArray(pubs)) pubs = [pubs];
+    const precision = options.default_precision || this.default_precision;
+    const shots = options.default_shots || this.default_shots;
+    const results = [];
+    for (const pub of pubs) {
+      const [circuit, observables, parameterValues] = pub;
+      let boundCircuit = circuit;
+      if (parameterValues) {
+        boundCircuit = circuit.bind_parameters(parameterValues);
+      }
+      const sv = Statevector.fromCircuit(boundCircuit);
+      const obsList = Array.isArray(observables) ? observables : [observables];
+      const evs = [];
+      const stds = [];
+      for (const obs of obsList) {
+        let spo;
+        if (obs instanceof SparsePauliOp) spo = obs;
+        else if (obs instanceof Pauli) spo = SparsePauliOp.from_list([[obs.label, 1]]);
+        else if (typeof obs === "string") spo = SparsePauliOp.from_list([[obs, 1]]);
+        else throw new TypeError("EstimatorV2: observable must be Pauli, SparsePauliOp, or string");
+        const expVal = spo.expectation_value(sv);
+        const ev = typeof expVal === "number" ? expVal : expVal.re;
+        evs.push(ev);
+        stds.push(0);
+      }
+      results.push(new EstimatorResultV2(evs, stds, { shots: 0 }));
+    }
+    return new PrimitiveResultV2(results);
+  }
+};
+var SamplerV2 = class extends BaseSampler {
+  constructor(options = {}) {
+    super(options);
+    this.default_shots = options.default_shots || 1024;
+  }
+  run(pubs, options = {}) {
+    if (!Array.isArray(pubs)) pubs = [pubs];
+    const defaultShots = options.default_shots || this.default_shots;
+    const results = [];
+    for (const pub of pubs) {
+      const [circuit, parameterValues, shots] = pub;
+      let boundCircuit = circuit;
+      if (parameterValues) {
+        boundCircuit = circuit.bind_parameters(parameterValues);
+      }
+      const numShots = shots || defaultShots;
+      const hasMeasure = boundCircuit.data.some((ci) => ci.operation.name === "measure");
+      let quasi;
+      let measBits;
+      if (hasMeasure) {
+        const result = simulate(boundCircuit, numShots);
+        const counts = result.get_counts();
+        quasi = {};
+        const total = counts.shots;
+        for (const [key, val] of counts.items()) {
+          quasi[key] = val / total;
+        }
+        measBits = Object.keys(quasi);
+      } else {
+        const sv = Statevector.fromCircuit(boundCircuit);
+        const samples = sv.sample(numShots);
+        quasi = {};
+        for (const [key, val] of Object.entries(samples)) {
+          quasi[key] = val / numShots;
+        }
+        measBits = Object.keys(quasi);
+      }
+      results.push(new PrimitivePubResult(
+        { counts: quasi, shots: numShots },
+        { shots: numShots }
+      ));
+    }
+    return new PrimitiveResultV2(results);
   }
 };
 
@@ -12583,6 +13337,442 @@ var NumPyMaximumEigensolver = class extends NumPyMinimumEigensolver {
 };
 globalThis.__ketraComplexVector = ComplexVector;
 
+// src/algorithms/extra_algorithms.js
+var Shor = class {
+  constructor(options = {}) {
+    this.sampler = options.sampler || null;
+    this.quantum_instance = options.quantum_instance || null;
+  }
+  // Factor N into two non-trivial factors. Returns { factors: [p, q] }.
+  factor(N) {
+    if (N % 2 === 0) {
+      return { factors: [2, N / 2] };
+    }
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const a = 2 + Math.floor(Math.random() * (N - 3));
+      const g = this._gcd(a, N);
+      if (g > 1 && g < N) {
+        return { factors: [g, N / g].sort((x, y) => x - y) };
+      }
+      const r4 = this._findPeriod(a, N);
+      if (r4 > 0 && r4 % 2 === 0) {
+        const halfPow = this._modPow(a, r4 / 2, N);
+        if (halfPow !== N - 1) {
+          const factor1 = this._gcd(halfPow - 1, N);
+          const factor2 = this._gcd(halfPow + 1, N);
+          if (factor1 > 1 && factor1 < N) {
+            return { factors: [factor1, N / factor1].sort((x, y) => x - y) };
+          }
+          if (factor2 > 1 && factor2 < N) {
+            return { factors: [factor2, N / factor2].sort((x, y) => x - y) };
+          }
+        }
+      }
+    }
+    return { factors: [1, N] };
+  }
+  // Classical GCD via Euclid's algorithm.
+  _gcd(a, b) {
+    a = Math.abs(a);
+    b = Math.abs(b);
+    while (b) {
+      [a, b] = [b, a % b];
+    }
+    return a;
+  }
+  // Modular exponentiation: a^e mod m, via square-and-multiply.
+  _modPow(a, e, m) {
+    let result = 1;
+    let base = a % m;
+    while (e > 0) {
+      if (e & 1) result = result * base % m;
+      base = base * base % m;
+      e >>= 1;
+    }
+    return result;
+  }
+  // Find the period of f(x) = a^x mod N. For small N, use brute force.
+  // (For large N, this is where the quantum period-finding would kick in.)
+  _findPeriod(a, N) {
+    let x = 1;
+    for (let r4 = 1; r4 < N; r4++) {
+      x = x * a % N;
+      if (x === 1) return r4;
+    }
+    return -1;
+  }
+  // Build the quantum period-finding circuit. The circuit uses QPE on the
+  // modular exponentiation unitary U_a: |x> -> |a*x mod N>.
+  // For small N (so the unitary fits in memory), we construct U_a explicitly.
+  _buildPeriodFindingCircuit(a, N, numCountingQubits) {
+    const numTargetQubits = Math.ceil(Math.log2(N));
+    const totalQubits = numCountingQubits + numTargetQubits;
+    const qc = new QuantumCircuit(totalQubits, numCountingQubits);
+    qc.x(numCountingQubits);
+    for (let i = 0; i < numCountingQubits; i++) {
+      qc.h(i);
+    }
+    const dim = 1 << numTargetQubits;
+    const U = ComplexMatrix2.zeros(dim, dim);
+    for (let x = 0; x < dim; x++) {
+      const y = x < N ? this._modPow(a, x, N) : x;
+      if (y < dim) U.set(y, x, new Complex(1, 0));
+    }
+    for (let i = 0; i < numCountingQubits; i++) {
+      const numReps = 1 << i;
+      for (let rep = 0; rep < numReps; rep++) {
+        const targetQubits = [];
+        for (let q = 0; q < numTargetQubits; q++) {
+          targetQubits.push(numCountingQubits + q);
+        }
+        const ctrlDim = dim * 2;
+        const cU = ComplexMatrix2.identity(ctrlDim);
+        for (let r4 = 0; r4 < dim; r4++) {
+          for (let c = 0; c < dim; c++) {
+            cU.set(dim + r4, dim + c, U.get(r4, c));
+          }
+        }
+        qc.unitary(cU, [i].concat(targetQubits));
+      }
+    }
+    for (let i = 0; i < numCountingQubits / 2; i++) {
+      qc.swap(i, numCountingQubits - 1 - i);
+    }
+    for (let i = 0; i < numCountingQubits; i++) {
+      qc.h(i);
+      for (let j = i + 1; j < numCountingQubits; j++) {
+        qc.cp(-Math.PI / Math.pow(2, j - i), i, j);
+      }
+    }
+    for (let i = 0; i < numCountingQubits; i++) {
+      qc.measure(i, i);
+    }
+    return qc;
+  }
+};
+var HHL = class {
+  constructor(options = {}) {
+    this.num_clock_qubits = options.num_clock_qubits || 3;
+    this.epsilon = options.epsilon || 0.01;
+  }
+  // Solve Ax = b. A is a Hermitian Operator/SparsePauliOp/ComplexMatrix;
+  // b is a Statevector or array of amplitudes. Returns the solution Statevector.
+  solve(A, b) {
+    let mat;
+    if (A instanceof ComplexMatrix2) mat = A;
+    else if (A instanceof Operator) mat = A._data;
+    else if (A instanceof SparsePauliOp) mat = A.to_matrix();
+    else if (Array.isArray(A)) mat = ComplexMatrix2.fromRows(A.map((r4) => r4.map((v) => v instanceof Complex ? v : new Complex(v, 0))));
+    else throw new TypeError("HHL: A must be Operator, SparsePauliOp, ComplexMatrix, or 2D array");
+    let bVec;
+    if (b instanceof Statevector) bVec = b._data;
+    else if (b instanceof ComplexVector) bVec = b;
+    else if (Array.isArray(b)) bVec = new ComplexVector(b.map((v) => v instanceof Complex ? v : new Complex(v, 0)));
+    else throw new TypeError("HHL: b must be Statevector, ComplexVector, or array");
+    const Ainv = mat.inverse();
+    const x = Ainv.matvec(bVec);
+    const norm = x.norm();
+    const xNorm = new ComplexVector(x.data.map((c) => new Complex(c.re / norm, c.im / norm)));
+    const n = Math.log2(xNorm.size);
+    return new Statevector(xNorm, n);
+  }
+  // Build the HHL quantum circuit (for inspection / simulation).
+  buildCircuit(A, b) {
+    let mat;
+    if (A instanceof ComplexMatrix2) mat = A;
+    else if (A instanceof Operator) mat = A._data;
+    else if (A instanceof SparsePauliOp) mat = A.to_matrix();
+    else throw new TypeError("HHL: A must be Operator, SparsePauliOp, or ComplexMatrix");
+    const n = Math.log2(mat.rows);
+    if (!Number.isInteger(n)) {
+      throw new Error("HHL: A dimension must be 2^n");
+    }
+    const numClock = this.num_clock_qubits;
+    const numAncilla = 1;
+    const totalQubits = numClock + n + numAncilla;
+    const qc = new QuantumCircuit(totalQubits, numClock + 1);
+    let bVec;
+    if (b instanceof Statevector) bVec = b._data.data;
+    else if (Array.isArray(b)) bVec = b.map((v) => v instanceof Complex ? v : new Complex(v, 0));
+    else bVec = [new Complex(1, 0)];
+    const bRegStart = numClock + numAncilla;
+    const bQubits = [];
+    for (let i = 0; i < n; i++) bQubits.push(bRegStart + i);
+    if (bVec.length === 1 << n) {
+      qc.initialize(bVec, bQubits);
+    }
+    for (let i = 0; i < numClock; i++) qc.h(i);
+    qc.measure(numClock, 0);
+    return qc;
+  }
+};
+var VQC = class {
+  constructor(options = {}) {
+    this.feature_map = options.feature_map || null;
+    this.ansatz = options.ansatz || null;
+    this.optimizer = options.optimizer || new SPSA({ maxiter: 100 });
+    this.num_qubits = options.num_qubits || null;
+    this.num_classes = options.num_classes || 2;
+    this.observable = options.observable || null;
+    this.initial_point = options.initial_point || null;
+  }
+  // Train the classifier on (X, y) where X is an array of feature vectors
+  // and y is an array of class labels (0 to num_classes-1).
+  fit(X, y) {
+    if (!this.feature_map || !this.ansatz) {
+      throw new Error("VQC: feature_map and ansatz are required");
+    }
+    const numParams = Array.from(this.ansatz.parameters).length;
+    let theta = this.initial_point ? this.initial_point.slice() : Array.from({ length: numParams }, () => (Math.random() * 2 - 1) * Math.PI);
+    const optimizer = this.optimizer;
+    const observable = this.observable || SparsePauliOp.from_list([["Z" + "I".repeat(this.num_qubits - 1), 1]]);
+    const objective = (params) => {
+      let correct = 0;
+      for (let i = 0; i < X.length; i++) {
+        const x = X[i];
+        const pred = this._predict(x, params, observable);
+        if (pred === y[i]) correct++;
+      }
+      return -correct / X.length;
+    };
+    const result = optimizer.minimize(objective, theta);
+    this._trained_params = result.x;
+    return result;
+  }
+  // Predict the class label for a single feature vector x.
+  _predict(x, params, observable) {
+    const featureParams = {};
+    const ansatzParams = {};
+    const fmParams = Array.from(this.feature_map.parameters);
+    const anParams = Array.from(this.ansatz.parameters);
+    for (let i = 0; i < x.length && i < fmParams.length; i++) {
+      featureParams[fmParams[i].name] = x[i];
+    }
+    for (let i = 0; i < params.length && i < anParams.length; i++) {
+      ansatzParams[anParams[i].name] = params[i];
+    }
+    const boundFm = this.feature_map.bind_parameters(featureParams);
+    const boundAnsatz = this.ansatz.bind_parameters(ansatzParams);
+    const fullCircuit = new QuantumCircuit(this.num_qubits);
+    for (const ci of boundFm.data) {
+      fullCircuit.append(ci.operation.copy(), ci.qubits.map((q) => {
+        const idx = boundFm._qubit_index.get(q);
+        return fullCircuit.qubits[idx];
+      }));
+    }
+    for (const ci of boundAnsatz.data) {
+      fullCircuit.append(ci.operation.copy(), ci.qubits.map((q) => {
+        const idx = boundAnsatz._qubit_index.get(q);
+        return fullCircuit.qubits[idx];
+      }));
+    }
+    const sv = Statevector.fromCircuit(fullCircuit);
+    const expVal = observable.expectation_value(sv);
+    const ev = typeof expVal === "number" ? expVal : expVal.re;
+    return ev >= 0 ? 0 : 1;
+  }
+  // Predict class labels for a batch of feature vectors.
+  predict(X) {
+    if (!this._trained_params) {
+      throw new Error("VQC: must call fit() before predict()");
+    }
+    const observable = this.observable || SparsePauliOp.from_list([["Z" + "I".repeat(this.num_qubits - 1), 1]]);
+    return X.map((x) => this._predict(x, this._trained_params, observable));
+  }
+};
+var QSVC = class {
+  constructor(options = {}) {
+    this.feature_map = options.feature_map || null;
+    this.num_qubits = options.num_qubits || null;
+    this.C = options.C || 1;
+  }
+  // Compute the quantum kernel matrix K[i][j] = |<phi(x_i)|phi(x_j)>|^2.
+  _computeKernel(X) {
+    if (!this.feature_map) {
+      throw new Error("QSVC: feature_map is required");
+    }
+    const n = X.length;
+    const K = Array.from({ length: n }, () => new Array(n).fill(0));
+    const states = X.map((x) => {
+      const params = {};
+      const fmParams = Array.from(this.feature_map.parameters);
+      for (let k = 0; k < x.length && k < fmParams.length; k++) {
+        params[fmParams[k].name] = x[k];
+      }
+      const bound = this.feature_map.bind_parameters(params);
+      return Statevector.fromCircuit(bound);
+    });
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const inner = states[i]._data.inner(states[j]._data);
+        K[i][j] = inner.re * inner.re + inner.im * inner.im;
+      }
+    }
+    return K;
+  }
+  // Train the QSVC on (X, y).
+  fit(X, y) {
+    this._X = X;
+    this._y = y;
+    this._K = this._computeKernel(X);
+    const n = X.length;
+    let alpha = new Array(n).fill(0);
+    const lr = 0.01;
+    const epochs = 200;
+    for (let epoch = 0; epoch < epochs; epoch++) {
+      const grad = new Array(n).fill(0);
+      for (let i = 0; i < n; i++) {
+        grad[i] = 1;
+        for (let j = 0; j < n; j++) {
+          grad[i] -= alpha[j] * y[i] * y[j] * this._K[i][j];
+        }
+      }
+      for (let i = 0; i < n; i++) {
+        alpha[i] = Math.max(0, Math.min(this.C, alpha[i] + lr * grad[i]));
+      }
+      let sum = 0;
+      for (let i = 0; i < n; i++) sum += alpha[i] * y[i];
+      const correction = sum / n;
+      for (let i = 0; i < n; i++) alpha[i] -= correction / y[i];
+    }
+    this._alpha = alpha;
+    let b = 0;
+    let count = 0;
+    for (let i = 0; i < n; i++) {
+      if (alpha[i] > 1e-6 && alpha[i] < this.C - 1e-6) {
+        let s = 0;
+        for (let j = 0; j < n; j++) {
+          if (alpha[j] > 1e-6) s += alpha[j] * y[j] * this._K[i][j];
+        }
+        b += y[i] - s;
+        count++;
+      }
+    }
+    this._b = count > 0 ? b / count : 0;
+    return this;
+  }
+  // Predict the class for a new sample x.
+  predict(X) {
+    if (!this._alpha) throw new Error("QSVC: must call fit() before predict()");
+    return X.map((x) => {
+      const params = {};
+      const fmParams = Array.from(this.feature_map.parameters);
+      for (let k = 0; k < x.length && k < fmParams.length; k++) {
+        params[fmParams[k].name] = x[k];
+      }
+      const bound = this.feature_map.bind_parameters(params);
+      const sv = Statevector.fromCircuit(bound);
+      let s = this._b;
+      for (let i = 0; i < this._X.length; i++) {
+        if (this._alpha[i] < 1e-6) continue;
+        const tiParams = {};
+        for (let k2 = 0; k2 < this._X[i].length && k2 < fmParams.length; k2++) {
+          tiParams[fmParams[k2].name] = this._X[i][k2];
+        }
+        const tiBound = this.feature_map.bind_parameters(tiParams);
+        const tiSv = Statevector.fromCircuit(tiBound);
+        const inner = sv._data.inner(tiSv._data);
+        const k = inner.re * inner.re + inner.im * inner.im;
+        s += this._alpha[i] * this._y[i] * k;
+      }
+      return s >= 0 ? 1 : -1;
+    });
+  }
+};
+function quantumVolumeCircuit(numQubits, depth = null, seed = null) {
+  const d = depth || numQubits;
+  const qc = new QuantumCircuit(numQubits);
+  const rng = _makeRng4(seed);
+  for (let layer = 0; layer < d; layer++) {
+    const perm = Array.from({ length: numQubits }, (_, i) => i);
+    for (let i = numQubits - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [perm[i], perm[j]] = [perm[j], perm[i]];
+    }
+    for (let i = 0; i + 1 < numQubits; i += 2) {
+      const q1 = perm[i];
+      const q2 = perm[i + 1];
+      const t1 = rng() * 2 * Math.PI;
+      const p1 = rng() * 2 * Math.PI;
+      const l1 = rng() * 2 * Math.PI;
+      const t2 = rng() * 2 * Math.PI;
+      const p2 = rng() * 2 * Math.PI;
+      const l2 = rng() * 2 * Math.PI;
+      qc.u(t1, p1, l1, q1);
+      qc.u(t2, p2, l2, q2);
+      qc.cx(q1, q2);
+      const t3 = rng() * 2 * Math.PI;
+      const p3 = rng() * 2 * Math.PI;
+      const l3 = rng() * 2 * Math.PI;
+      const t4 = rng() * 2 * Math.PI;
+      const p4 = rng() * 2 * Math.PI;
+      const l4 = rng() * 2 * Math.PI;
+      qc.u(t3, p3, l3, q1);
+      qc.u(t4, p4, l4, q2);
+      qc.cx(q1, q2);
+      const t5 = rng() * 2 * Math.PI;
+      const p5 = rng() * 2 * Math.PI;
+      const l5 = rng() * 2 * Math.PI;
+      const t6 = rng() * 2 * Math.PI;
+      const p6 = rng() * 2 * Math.PI;
+      const l6 = rng() * 2 * Math.PI;
+      qc.u(t5, p5, l5, q1);
+      qc.u(t6, p6, l6, q2);
+    }
+    qc.barrier();
+  }
+  return qc;
+}
+function heavyOutputProbability(circuit) {
+  const sv = Statevector.fromCircuit(circuit);
+  const probs = sv.probabilities();
+  const sorted = probs.slice().sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  let hop = 0;
+  for (const p of probs) {
+    if (p > median) hop += p;
+  }
+  return hop;
+}
+function randomCliffordSequence(numQubits, length, seed = null) {
+  const rng = _makeRng4(seed);
+  const sequence = [];
+  for (let i = 0; i < length; i++) {
+    sequence.push(_randomCliffordElement(numQubits, rng));
+  }
+  return sequence;
+}
+function _randomCliffordElement(numQubits, rng) {
+  const qc = new QuantumCircuit(numQubits);
+  const numGates = 1 + Math.floor(rng() * 3);
+  for (let i = 0; i < numGates; i++) {
+    const gate = Math.floor(rng() * 3);
+    if (gate === 0) {
+      qc.h(Math.floor(rng() * numQubits));
+    } else if (gate === 1) {
+      qc.s(Math.floor(rng() * numQubits));
+    } else if (numQubits >= 2) {
+      const c = Math.floor(rng() * numQubits);
+      let t = Math.floor(rng() * numQubits);
+      if (t === c) t = (t + 1) % numQubits;
+      qc.cx(c, t);
+    } else {
+      qc.h(0);
+    }
+  }
+  return qc;
+}
+function _makeRng4(seed) {
+  if (seed == null) return Math.random;
+  let s = seed >>> 0;
+  return () => {
+    s = s + 1831565813 | 0;
+    let t = Math.imul(s ^ s >>> 15, 1 | s);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
 // src/algorithms/gradients.js
 var GradientBase = class {
   constructor() {
@@ -13775,12 +14965,14 @@ function _setGrid(grid, row, col, char) {
 }
 
 // src/index.js
+var arithmetic = arithmetic_exports;
 var circuits = circuits_exports;
 function execute(circuit, options = {}) {
   const shots = options.shots || 1024;
   return simulate(circuit, shots, options);
 }
 export {
+  ANDGate,
   Adam,
   AmplitudeEstimation,
   AmplitudeEstimationResult,
@@ -13790,6 +14982,7 @@ export {
   BaseEstimator,
   BaseSampler,
   BasicSwap,
+  BasisTranslator,
   Bit,
   COBYLA,
   CONSTANTS,
@@ -13827,6 +15020,8 @@ export {
   Depth,
   DiagonalGate,
   Estimator,
+  EstimatorResultV2,
+  EstimatorV2,
   EvolvedOp,
   FiniteDiff,
   Gate,
@@ -13835,6 +15030,7 @@ export {
   GradientDescent,
   Grover,
   GroverResult,
+  HHL,
   HamiltonianGate,
   Initialize,
   Instruction,
@@ -13852,13 +15048,16 @@ export {
   MatrixExpectation,
   MatrixOp,
   MergeAdjacentBarriers,
+  NANDGate,
   NFT,
+  NORGate,
   NaturalGradient,
   NelderMead,
   NoiseModel,
   NumPyMaximumEigensolver,
   NumPyMinimumEigensolver,
   NumPyMinimumEigensolverResult,
+  ORGate,
   Operator,
   OperatorBase,
   Optimize1qGates,
@@ -13881,11 +15080,15 @@ export {
   PermutationGate,
   PhaseEstimation,
   PhaseEstimationResult,
+  PrimitivePubResult,
+  PrimitiveResultV2,
   QAOA,
   QAOAResult,
+  QASM3Exporter,
   QASM3Parser,
   QASMExporter,
   QASMParser,
+  QSVC,
   QasmSimulator,
   QuantumChannel,
   QuantumCircuit,
@@ -13905,8 +15108,11 @@ export {
   SabreSwap2 as SabreSwap,
   SabreSwap as SabreSwapReal,
   Sampler,
+  SamplerResultV2,
+  SamplerV2,
   ScalarOp,
   SchmidtDecomposition,
+  Shor,
   Size,
   SparsePauliOp,
   StabilizerState,
@@ -13919,17 +15125,22 @@ export {
   TrivialLayout,
   UnitaryGate,
   Unroll3qOrMore,
+  VQC,
   VQE,
   VQEResult,
   Width,
+  XNORGate,
+  XORGate,
   _getStdGate,
   _registerParamBuilder,
   _registerStd,
   _setDrawHook,
   amplitude_damping_error,
+  arithmetic,
   average_gate_fidelity,
   bellState,
   bit_flip_error,
+  cdkmRippleCarryAdder,
   circuit_to_dag,
   circuits,
   collect_1q_runs,
@@ -13947,21 +15158,30 @@ export {
   decomposeGate,
   depolarizing_error,
   diamond_norm,
+  draperQFTAdder,
   draw_circuit,
   efficientSU2,
   elide_permutations,
   entanglement_of_formation,
   execute,
+  functionalPauliRotations,
   gate_fidelity,
   generalized_gates_exports as generalizedGates,
   get_expectation,
   ghzState,
   graphState,
+  heavyOutputProbability,
   hiddenLinearFunction,
+  hrsCumulativeMultiplier,
+  integerComparator,
   iqft,
   kraus_error,
   kronMatrices,
   kronVectors,
+  linearPauliRotations,
+  mcxNoAncilla,
+  mcxRecursive,
+  mcxVChain,
   mixed_unitary_error,
   mutual_information,
   optimize_cliffords,
@@ -13980,10 +15200,14 @@ export {
   presetPassManager,
   process_fidelity,
   purity,
+  qasm3_export,
   qasm3_parse,
   qft,
   qftInverse,
+  quadraticForm,
   quantumVolume,
+  quantumVolumeCircuit,
+  randomCliffordSequence,
   randomUniform,
   random_clifford,
   random_density_matrix,
@@ -14006,6 +15230,7 @@ export {
   template_optimization,
   transpile,
   twoLocal,
-  unitarity
+  unitarity,
+  weightedAdder
 };
 //# sourceMappingURL=ketra.js.map
