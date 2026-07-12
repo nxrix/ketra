@@ -1,0 +1,52 @@
+{
+  "name": "@nxrix/ketra",
+  "version": "1.1.2",
+  "description": "A quantum computing framework for JavaScript inspired by Qiskit",
+  "type": "module",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "require": "./dist/ketra.js"
+    }
+  },
+  "browser": "./dist/ketra.js",
+  "unpkg": "./dist/ketra.min.js",
+  "files": [
+    "src/",
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node build.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "quantum",
+    "quantum-computing",
+    "quantum-circuit",
+    "qiskit",
+    "simulation",
+    "statevector",
+    "vqe",
+    "qaoa",
+    "grover",
+    "javascript",
+    "esm"
+  ],
+  "author": "nxrix",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nxrix/ketra"
+  },
+  "homepage": "https://github.com/nxrix/ketra",
+  "bugs": {
+    "url": "https://github.com/nxrix/ketra/issues"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}
