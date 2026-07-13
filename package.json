@@ -50,7 +50,8 @@
     "@babel/preset-env": "^7.24.0",
     "babel-jest": "^29.7.0",
     "esbuild": "^0.28.1",
-    "jest": "^29.7.0"
+    "jest": "^29.7.0",
+    "jsdoc": "^4.0.5"
   },
   "jest": {
     "testEnvironment": "node",
