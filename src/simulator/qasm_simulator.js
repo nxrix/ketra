@@ -1,46 +1,33 @@
-/**
- * qasm_simulator.js - Noisy quantum circuit simulator.
- *
- * Noisy quantum circuit simulator. Supports:
- *   - Statevector simulation with shot-based sampling
- *   - Noise models (depolarizing, bit flip, amplitude damping, etc.)
- *   - Readout errors
- *   - Multiple shots
- *
- * For noise: uses density matrix evolution (Kraus operators).
- */
-
-import { Complex, ComplexMatrix, ComplexVector, sampleDistribution, randomUniform } from "../math/linalg.js";
+import { Complex, ComplexVector, sampleDistribution, randomUniform } from "../math/linalg.js";
 import { Result, Counts } from "../result/result.js";
-import { DensityMatrix } from "../quantum_info/density_matrix.js";
 
 export class QasmSimulator {
   constructor(options = {}) {
     this.method = options.method || "automatic";
-    this.noise_model = options.noise_model || null;
-    this.basis_gates = options.basis_gates || null;
-    this.max_memory_mb = options.max_memory_mb || 8192;
+    this.noiseModel = options.noiseModel || null;
+    this.basisGates = options.basisGates || null;
+    this.maxMemoryMb = options.maxMemoryMb || 8192;
     this.seed = options.seed || null;
   }
 
   // Run one or more circuits
   run(circuits, shots = 1024, options = {}) {
     const circuitList = Array.isArray(circuits) ? circuits : [circuits];
-    const noiseModel = options.noise_model || this.noise_model;
+    const noiseModel = options.noiseModel || this.noiseModel;
     const results = circuitList.map(c => this._runOne(c, shots, noiseModel, options));
     return new Result({
-      backend_name: "qasm_simulator",
-      backend_version: "1.0.0",
-      qobj_id: options.qobj_id || "qobj",
-      job_id: options.job_id || `job_${Date.now()}`,
+      backendName: "qasm_simulator",
+      backendVersion: "1.0.0",
+      qobjId: options.qobjId || "qobj",
+      jobId: options.jobId || `job_${Date.now()}`,
       success: true,
       results,
     });
   }
 
   _runOne(circuit, shots, noiseModel, options) {
-    const n = circuit.num_qubits;
-    const hasNoise = noiseModel && !noiseModel.is_empty();
+    const n = circuit.numQubits;
+    const hasNoise = noiseModel && !noiseModel.isEmpty();
 
     if (hasNoise) {
       return this._runNoisy(circuit, shots, noiseModel, options);
@@ -50,7 +37,7 @@ export class QasmSimulator {
 
   // Ideal simulation: statevector + sampling
   _runIdeal(circuit, shots, options) {
-    const n = circuit.num_qubits;
+    const n = circuit.numQubits;
     const state = ComplexVector.zeros(1 << n);
     state.data[0] = Complex.ONE;
     const finalMeasures = [];
@@ -74,19 +61,19 @@ export class QasmSimulator {
         }
         continue;
       }
-      if (op.name === "if_else" || op.name === "while_loop") continue;
-      if (typeof op.to_matrix !== "function") continue;
-      const gateMatrix = op.to_matrix();
+      if (op.name === "if_else" || op.name === "whileLoop") continue;
+      if (typeof op.toMatrix !== "function") continue;
+      const gateMatrix = op.toMatrix();
       const qubitIndices = ci.qubits.map(q => circuit._qubit_index.get(q));
-      _applyGateInPlace(state, gateMatrix, op.num_qubits, qubitIndices);
+      _applyGateInPlace(state, gateMatrix, op.numQubits, qubitIndices);
     }
 
     // Sample
     const probs = state.probabilities();
     const counts = {};
     const memory = new Array(shots);
-    const numClbits = circuit.num_clbits;
-    const numQubits = circuit.num_qubits;
+    const numClbits = circuit.numClbits;
+    const numQubits = circuit.numQubits;
     for (let s = 0; s < shots; s++) {
       const idx = sampleDistribution(probs, options.rng);
       const bits = new Array(numClbits).fill("0");
@@ -114,7 +101,7 @@ export class QasmSimulator {
 
   // Noisy simulation: density matrix evolution with Kraus operators
   _runNoisy(circuit, shots, noiseModel, options) {
-    const n = circuit.num_qubits;
+    const n = circuit.numQubits;
     // For each shot, we evolve a pure state and apply noise stochastically
     // (trajectory method). This is more efficient than density matrix for
     // large numbers of shots.
@@ -138,7 +125,7 @@ export class QasmSimulator {
     for (let shot = 0; shot < shots; shot++) {
       const state = ComplexVector.zeros(1 << n);
       state.data[0] = Complex.ONE;
-      let measuredBits = new Array(circuit.num_clbits).fill(0);
+      let measuredBits = new Array(circuit.numClbits).fill(0);
 
       for (const ci of circuit.data) {
         const op = ci.operation;
@@ -167,16 +154,16 @@ export class QasmSimulator {
           }
           continue;
         }
-        if (op.name === "if_else" || op.name === "while_loop") continue;
-        if (typeof op.to_matrix !== "function") continue;
+        if (op.name === "if_else" || op.name === "whileLoop") continue;
+        if (typeof op.toMatrix !== "function") continue;
 
         // Apply the gate
-        const gateMatrix = op.to_matrix();
+        const gateMatrix = op.toMatrix();
         const qubitIndices = ci.qubits.map(q => circuit._qubit_index.get(q));
-        _applyGateInPlace(state, gateMatrix, op.num_qubits, qubitIndices);
+        _applyGateInPlace(state, gateMatrix, op.numQubits, qubitIndices);
 
         // Apply noise if this gate has an error
-        const error = noiseModel.get_quantum_error(op.name, qubitIndices);
+        const error = noiseModel.getQuantumError(op.name, qubitIndices);
         if (error) {
           _applyQuantumError(state, error, qubitIndices, n);
         }
@@ -216,9 +203,7 @@ export class QasmSimulator {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function _applyGateInPlace(state, gateMatrix, k, qubitIndices) {
   const n = state.size;
@@ -368,7 +353,7 @@ function _applyQuantumError(state, error, qubitIndices, totalQubits) {
 }
 
 // Convenience function
-export function simulate_noisy(circuit, shots = 1024, options = {}) {
+export function simulateNoisy(circuit, shots = 1024, options = {}) {
   const sim = new QasmSimulator(options);
   return sim.run(circuit, shots, options);
 }

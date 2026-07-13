@@ -1,20 +1,3 @@
-/**
- * qasm3_exporter.js - Export a QuantumCircuit to OpenQASM 3.0 source code.
- *
- * Supports:
- *   - qubit/creg declarations in both old (qreg/creg) and new (qubit[N] q;)
- *     syntaxes
- *   - All standard + parameterized gates
- *   - measure, reset, barrier
- *   - Classical conditions (if statements)
- *   - Bitstring literals for measure assignments (c[0] = measure q[0];)
- *   - Gate definitions (custom gates)
- *   - global phase, delays, and other QASM3-specific constructs
- *
- * Output is valid OpenQASM 3.0 that can be re-parsed by QASM3Parser.
- */
-
-import { Parameter } from "./../core/parameter.js";
 
 function _formatNumber(n) {
   if (Math.abs(n - Math.PI) < 1e-12) return "pi";
@@ -45,39 +28,39 @@ function _formatParam(p) {
 export class QASM3Exporter {
   constructor(options = {}) {
     this.includes = options.includes || ["stdgates.inc"];
-    this.disable_extension_clause = options.disable_extension_clause || false;
+    this.disableExtensionClause = options.disableExtensionClause || false;
     // Use the modern QASM3 syntax (qubit[N] q;) by default.
-    this.use_modern_syntax = options.use_modern_syntax !== false;
+    this.useModernSyntax = options.useModernSyntax !== false;
   }
 
   export(circuit) {
     const lines = [];
     lines.push("OPENQASM 3.0;");
     lines.push("include \"stdgates.inc\";");
-    if (circuit.global_phase && Math.abs(circuit.global_phase) > 1e-12) {
-      lines.push(`// global phase = ${_formatNumber(circuit.global_phase)}`);
+    if (circuit.globalPhase && Math.abs(circuit.globalPhase) > 1e-12) {
+      lines.push(`// global phase = ${_formatNumber(circuit.globalPhase)}`);
     }
 
     // Register declarations
     const qrName = circuit.qregs.length > 0 ? circuit.qregs[0].name : "q";
     const crName = circuit.cregs.length > 0 ? circuit.cregs[0].name : "c";
-    if (circuit.num_qubits > 0) {
-      if (this.use_modern_syntax) {
-        lines.push(`qubit[${circuit.num_qubits}] ${qrName};`);
+    if (circuit.numQubits > 0) {
+      if (this.useModernSyntax) {
+        lines.push(`qubit[${circuit.numQubits}] ${qrName};`);
       } else {
-        lines.push(`qreg ${qrName}[${circuit.num_qubits}];`);
+        lines.push(`qreg ${qrName}[${circuit.numQubits}];`);
       }
     }
-    if (circuit.num_clbits > 0) {
-      if (this.use_modern_syntax) {
-        lines.push(`bit[${circuit.num_clbits}] ${crName};`);
+    if (circuit.numClbits > 0) {
+      if (this.useModernSyntax) {
+        lines.push(`bit[${circuit.numClbits}] ${crName};`);
       } else {
-        lines.push(`creg ${crName}[${circuit.num_clbits}];`);
+        lines.push(`creg ${crName}[${circuit.numClbits}];`);
       }
     }
 
-    const qRef = (q) => `${qrName}[${circuit.qubit_indices(q)}]`;
-    const cRef = (c) => `${crName}[${circuit.clbit_indices(c)}]`;
+    const qRef = (q) => `${qrName}[${circuit.qubitIndices(q)}]`;
+    const cRef = (c) => `${crName}[${circuit.clbitIndices(c)}]`;
 
     // Custom gate definitions we may need to emit.
     const customGates = new Set();
@@ -95,7 +78,7 @@ export class QASM3Exporter {
         continue;
       }
       if (name === "measure") {
-        // QASM3 supports both `measure q -> c;` and `c = measure q;`
+        // QASM3 supports both `measure q -> c;` and `c = measure q;`.
         // We use the latter form (more modern).
         lines.push(`${cRef(ci.clbits[0])} = measure ${qRef(ci.qubits[0])};`);
         continue;
@@ -108,8 +91,8 @@ export class QASM3Exporter {
         lines.push(`// delay ${params[0]} ${params[1] || 'dt'} on ${qargs}`);
         continue;
       }
-      if (name === "if_else" || name === "while_loop") {
-        // Control-flow nodes are skipped here; their conditions are
+      if (name === "if_else" || name === "whileLoop") {
+        // Control-flow nodes are skipped; conditions are
         // attached to the individual gated instructions.
         continue;
       }
@@ -161,8 +144,7 @@ function _paramToNum(p) {
   return 0;
 }
 
-// Convenience function
-export function qasm3_export(circuit, options = {}) {
+export function qasm3Export(circuit, options = {}) {
   const exporter = new QASM3Exporter(options);
   return exporter.export(circuit);
 }

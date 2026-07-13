@@ -1,30 +1,14 @@
-/**
- * sabre.js - Real Sabre routing algorithm.
- *
- * Implements the Sabre routing and layout algorithms from
- * "Tackling the Qubit Mapping Problem for NISQ-Era Quantum Devices" (Li et al., 2019).
- *
- * Sabre is a heuristic routing algorithm that:
- *   1. Maintains a mapping between virtual and physical qubits
- *   2. For each gate, finds the shortest path in the coupling map
- *   3. Inserts SWAPs along the path to bring interacting qubits together
- *   4. Uses a lookahead cost function with decay to avoid local minima
- */
-
-import { Layout, CouplingMap } from "./layout.js";
+import { Layout } from "./layout.js";
 import { QuantumCircuit } from "../core/circuit.js";
 import { QuantumRegister, ClassicalRegister } from "../core/bit.js";
-import { CircuitInstruction } from "../core/circuit.js";
 import { Gate } from "../core/gate.js";
 import { DAGOpNode } from "../dagcircuit/dagcircuit.js";
 import * as standardGates from "../library/standard_gates.js";
 
-// ---------------------------------------------------------------------------
 // Sabre routing
-// ---------------------------------------------------------------------------
 export class SabreSwap {
   constructor(couplingMap, heuristic = "lookahead", seed = null) {
-    this.coupling_map = couplingMap;
+    this.couplingMap = couplingMap;
     this.heuristic = heuristic; // "basic" or "lookahead"
     this.seed = seed;
     this._rng = seed != null ? _makeRng(seed) : Math.random;
@@ -36,7 +20,7 @@ export class SabreSwap {
   // Run Sabre routing on a DAGCircuit.
   // Returns a routed QuantumCircuit with SWAP gates inserted where needed.
   run(dag) {
-    if (!this.coupling_map) {
+    if (!this.couplingMap) {
       // No coupling map: just convert DAG back to a circuit unchanged.
       return dag;
     }
@@ -49,8 +33,7 @@ export class SabreSwap {
       layout.setPhysical(i, dag.qubits[i]);
     }
 
-    // Collect all gates in topological order
-    const gates = dag.topological_op_nodes();
+    const gates = dag.topologicalOpNodes();
     const frontLayer = [];
     const executedGates = new Set();
     const remainingGates = new Set(gates);
@@ -80,10 +63,8 @@ export class SabreSwap {
       }
     }
 
-    // Decay factors for each physical qubit
-    const decay = new Array(this.coupling_map.size).fill(1);
+    const decay = new Array(this.couplingMap.size).fill(1);
 
-    // Distance matrix (precomputed)
     const distMatrix = this._computeDistanceMatrix();
 
     // Schedule: list of {kind: 'gate'|'swap', ...} recording the order of
@@ -96,7 +77,6 @@ export class SabreSwap {
     while (frontLayer.length > 0 && iterations < maxIterations) {
       iterations++;
 
-      // Execute all gates in front layer that can be executed on current layout
       const executeList = [];
       const remainingFront = [];
       for (const gate of frontLayer) {
@@ -123,13 +103,11 @@ export class SabreSwap {
         }
         frontLayer.length = 0;
         frontLayer.push(...remainingFront);
-        // Reset decay
         decay.fill(1);
         continue;
       }
 
       // No gates can execute — need to insert SWAPs
-      // Find the best SWAP using the cost function
       const swapCandidates = this._generateSwapCandidates(frontLayer, layout);
       if (swapCandidates.length === 0) {
         // No SWAPs possible — break out and let _buildRoutedCircuit emit
@@ -151,7 +129,6 @@ export class SabreSwap {
         // Record the SWAP in the schedule BEFORE mutating the layout, so the
         // builder can emit it at the right point with the right qubits.
         schedule.push({ kind: "swap", physical: [bestSwap[0], bestSwap[1]], layout: layout.copy() });
-        // Apply the SWAP to the layout
         layout.swap(bestSwap[0], bestSwap[1]);
         // Increase decay for swapped qubits (Sabre's decay schedule)
         decay[bestSwap[0]] += this.decrement;
@@ -163,36 +140,33 @@ export class SabreSwap {
     return this._buildRoutedCircuit(dag, schedule, layout);
   }
 
-  // Check if a gate can execute on the current layout
   _canExecute(gate, layout) {
-    if (gate.op.num_qubits < 2) return true;
+    if (gate.op.numQubits < 2) return true;
     const physicalQubits = gate.qargs.map(q => layout.getVirtual(q));
     if (physicalQubits.some(p => p === undefined)) return false;
-    // Check coupling map
     if (gate.op.name === "cx" || gate.op.name === "cy" || gate.op.name === "cz" || gate.op.name === "ch") {
-      return this.coupling_map.hasEdge(physicalQubits[0], physicalQubits[1]);
+      return this.couplingMap.hasEdge(physicalQubits[0], physicalQubits[1]);
     }
     return true;
   }
 
-  // Generate candidate SWAPs from the front layer
   _generateSwapCandidates(frontLayer, layout) {
     const candidates = [];
     const seen = new Set();
     for (const gate of frontLayer) {
-      if (gate.op.num_qubits < 2) continue;
+      if (gate.op.numQubits < 2) continue;
       const q1 = layout.getVirtual(gate.qargs[0]);
       const q2 = layout.getVirtual(gate.qargs[1]);
       if (q1 === undefined || q2 === undefined) continue;
       // Consider SWAPs with neighbors of q1
-      for (const neighbor of this.coupling_map.neighbors(q1)) {
+      for (const neighbor of this.couplingMap.neighbors(q1)) {
         const key = [Math.min(q1, neighbor), Math.max(q1, neighbor)].join(",");
         if (!seen.has(key)) {
           seen.add(key);
           candidates.push([q1, neighbor]);
         }
       }
-      for (const neighbor of this.coupling_map.neighbors(q2)) {
+      for (const neighbor of this.couplingMap.neighbors(q2)) {
         const key = [Math.min(q2, neighbor), Math.max(q2, neighbor)].join(",");
         if (!seen.has(key)) {
           seen.add(key);
@@ -203,15 +177,13 @@ export class SabreSwap {
     return candidates;
   }
 
-  // Compute the cost of a SWAP using the Sabre heuristic
   _swapCost(swap, frontLayer, layout, distMatrix, decay) {
-    // Temporarily apply the SWAP
     const tempLayout = layout.copy();
     tempLayout.swap(swap[0], swap[1]);
 
     let totalCost = 0;
     for (const gate of frontLayer) {
-      if (gate.op.num_qubits < 2) continue;
+      if (gate.op.numQubits < 2) continue;
       const q1 = tempLayout.getVirtual(gate.qargs[0]);
       const q2 = tempLayout.getVirtual(gate.qargs[1]);
       if (q1 === undefined || q2 === undefined) continue;
@@ -226,7 +198,7 @@ export class SabreSwap {
       let nextCost = 0;
       let count = 0;
       for (const gate of nextLayer) {
-        if (gate.op.num_qubits < 2) continue;
+        if (gate.op.numQubits < 2) continue;
         const q1 = tempLayout.getVirtual(gate.qargs[0]);
         const q2 = tempLayout.getVirtual(gate.qargs[1]);
         if (q1 === undefined || q2 === undefined) continue;
@@ -252,14 +224,13 @@ export class SabreSwap {
     return Array.from(next);
   }
 
-  // Precompute shortest-path distances between all pairs
   _computeDistanceMatrix() {
-    const n = this.coupling_map.size;
+    const n = this.couplingMap.size;
     const dist = new Array(n);
     for (let i = 0; i < n; i++) {
       dist[i] = new Array(n);
       for (let j = 0; j < n; j++) {
-        dist[i][j] = i === j ? 0 : (this.coupling_map.hasEdge(i, j) ? 1 : Infinity);
+        dist[i][j] = i === j ? 0 : (this.couplingMap.hasEdge(i, j) ? 1 : Infinity);
       }
     }
     // Floyd-Warshall
@@ -282,9 +253,9 @@ export class SabreSwap {
   _buildRoutedCircuit(dag, schedule, finalLayout) {
     const n = dag.qubits.length;
     const routed = new QuantumCircuit();
-    routed.add_register(new QuantumRegister(n, "q"));
+    routed.addRegister(new QuantumRegister(n, "q"));
     if (dag.clbits.length > 0) {
-      routed.add_register(new ClassicalRegister(dag.clbits.length, "c"));
+      routed.addRegister(new ClassicalRegister(dag.clbits.length, "c"));
     }
     // Map original DAG qubits/clbits to routed circuit qubits/clbits by index.
     const qubitMap = new Map();
@@ -332,18 +303,16 @@ export class SabreSwap {
   }
 }
 
-// ---------------------------------------------------------------------------
 // SabreLayout: find a good initial layout
-// ---------------------------------------------------------------------------
 export class SabreLayout {
   constructor(couplingMap, seed = null, maxIterations = 4) {
-    this.coupling_map = couplingMap;
+    this.couplingMap = couplingMap;
     this.seed = seed;
-    this.max_iterations = maxIterations;
+    this.maxIterations = maxIterations;
   }
 
   run(dag) {
-    if (!this.coupling_map) {
+    if (!this.couplingMap) {
       // No coupling map: return trivial layout using DAG's Qubit objects.
       const layout = new Layout();
       for (let i = 0; i < dag.qubits.length; i++) layout.setPhysical(i, dag.qubits[i]);
@@ -355,7 +324,7 @@ export class SabreLayout {
     let bestLayout = null;
     let bestScore = Infinity;
 
-    for (let iter = 0; iter < this.max_iterations; iter++) {
+    for (let iter = 0; iter < this.maxIterations; iter++) {
       // Try different initial layouts. The first iteration uses the trivial
       // layout (virtual i -> physical i); subsequent iterations use random
       // permutations.
@@ -366,12 +335,12 @@ export class SabreLayout {
           initialLayout.setPhysical(i, dag.qubits[i]);
         }
       } else {
-        initialLayout = this._randomLayout(dag.qubits, this.coupling_map.size);
+        initialLayout = this._randomLayout(dag.qubits, this.couplingMap.size);
       }
 
       // Run SabreSwap with this coupling map. The swap pass uses its own
       // internal trivial layout, so we only use the routed circuit to score.
-      const sabre = new SabreSwap(this.coupling_map, "lookahead", this.seed != null ? this.seed + iter : null);
+      const sabre = new SabreSwap(this.couplingMap, "lookahead", this.seed != null ? this.seed + iter : null);
       const routed = sabre.run(dag);
 
       // Score: count of SWAP gates inserted.
@@ -402,27 +371,24 @@ export class SabreLayout {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Additional transpiler passes
-// ---------------------------------------------------------------------------
 
 // Collect runs of single-qubit gates
-export function collect_1q_runs(dag) {
+export function collect1qRuns(dag) {
   const runs = [];
   const visited = new Set();
-  for (const node of dag.topological_op_nodes()) {
+  for (const node of dag.topologicalOpNodes()) {
     if (visited.has(node)) continue;
-    if (node.op.num_qubits !== 1) continue;
+    if (node.op.numQubits !== 1) continue;
     const run = [node];
     visited.add(node);
-    // Follow the chain
     let current = node;
     while (true) {
       const succs = dag.successors(current).filter(s => s.is_op_node());
       if (succs.length !== 1) break;
       const next = succs[0];
-      if (next.op.num_qubits !== 1) break;
-      if (next.qubits[0] !== current.qubits[0]) break;
+      if (next.op.numQubits !== 1) break;
+      if (next.qargs[0] !== current.qargs[0]) break;
       run.push(next);
       visited.add(next);
       current = next;
@@ -433,12 +399,12 @@ export function collect_1q_runs(dag) {
 }
 
 // Collect runs of 2-qubit gates
-export function collect_2q_runs(dag) {
+export function collect2qRuns(dag) {
   const runs = [];
   const visited = new Set();
-  for (const node of dag.topological_op_nodes()) {
+  for (const node of dag.topologicalOpNodes()) {
     if (visited.has(node)) continue;
-    if (node.op.num_qubits !== 2) continue;
+    if (node.op.numQubits !== 2) continue;
     const run = [node];
     visited.add(node);
     let current = node;
@@ -446,8 +412,8 @@ export function collect_2q_runs(dag) {
       const succs = dag.successors(current).filter(s => s.is_op_node());
       if (succs.length !== 1) break;
       const next = succs[0];
-      if (next.op.num_qubits !== 2) break;
-      if (next.qubits[0] !== current.qubits[0] || next.qubits[1] !== current.qubits[1]) break;
+      if (next.op.numQubits !== 2) break;
+      if (next.qargs[0] !== current.qargs[0] || next.qargs[1] !== current.qargs[1]) break;
       run.push(next);
       visited.add(next);
       current = next;
@@ -461,27 +427,24 @@ export function collect_2q_runs(dag) {
 // Each run is replaced by a single gate whose matrix is the product of the
 // run's gate matrices (applied left to right = rightmost matrix is earliest
 // in time).
-export function consolidate_blocks(dag) {
-  const runs1q = collect_1q_runs(dag);
+export function consolidateBlocks(dag) {
+  const runs1q = collect1qRuns(dag);
   for (const run of runs1q) {
-    // Compose all gates in the run into one 2x2 unitary.
     let combined = null;
     let ok = true;
     for (const node of run) {
       try {
-        const m = node.op.to_matrix();
+        const m = node.op.toMatrix();
         combined = combined ? m.mul(combined) : m;
       } catch (e) { ok = false; break; }
     }
     if (!ok || !combined) continue;
-    // Build a unitary gate wrapping the combined matrix.
     const newGate = new Gate("unitary", 1, [combined]);
     newGate._matrixBuilder = () => combined;
     const newNode = new DAGOpNode(newGate, run[0].qargs.slice(), []);
-    dag.substitute_node(run[0], newNode);
-    // Remove the rest of the run.
+    dag.substituteNode(run[0], newNode);
     for (let i = 1; i < run.length; i++) {
-      try { dag.remove_op_node(run[i]); } catch (e) { /* already removed */ }
+      try { dag.removeOpNode(run[i]); } catch (e) { /* already removed */ }
     }
   }
   return dag;
@@ -490,10 +453,10 @@ export function consolidate_blocks(dag) {
 // Cancel adjacent identical self-inverse Clifford gates (H, X, Y, Z, CX, CZ, SWAP).
 // Walks the topologically-sorted op node list and removes consecutive pairs
 // with matching name and qubit operands.
-export function optimize_cliffords(dag) {
-  const nodes = dag.topological_op_nodes();
+export function optimizeCliffords(dag) {
+  const nodes = dag.topologicalOpNodes();
   const selfInverse = new Set(["h", "x", "y", "z", "cx", "cz", "swap"]);
-  // We can't mutate the DAG while iterating topological_op_nodes; collect
+  // We can't mutate the DAG while iterating topologicalOpNodes; collect
   // cancellations and apply them in a second pass.
   const toRemove = new Set();
   const stack = []; // stack of pending nodes
@@ -503,9 +466,8 @@ export function optimize_cliffords(dag) {
       const prev = stack[stack.length - 1];
       if (selfInverse.has(prev.op.name) &&
           prev.op.name === node.op.name &&
-          prev.qubits.length === node.qubits.length &&
-          prev.qubits.every((q, i) => q === node.qubits[i])) {
-        // Cancel the pair.
+          prev.qargs.length === node.qargs.length &&
+          prev.qargs.every((q, i) => q === node.qargs[i])) {
         stack.pop();
         toRemove.add(prev);
         toRemove.add(node);
@@ -515,25 +477,24 @@ export function optimize_cliffords(dag) {
     stack.push(node);
   }
   for (const node of toRemove) {
-    try { dag.remove_op_node(node); } catch (e) { /* already gone */ }
+    try { dag.removeOpNode(node); } catch (e) { /* already gone */ }
   }
   return dag;
 }
 
 // Remove diagonal gates before measure (they don't affect the outcome)
-export function remove_diagonal_gates_before_measure(dag) {
+export function removeDiagonalGatesBeforeMeasure(dag) {
   const diagonalGates = ["z", "s", "sdg", "t", "tdg", "p", "u1", "rz", "cz", "cp"];
   const toRemove = [];
-  for (const node of dag.topological_op_nodes()) {
+  for (const node of dag.topologicalOpNodes()) {
     if (!diagonalGates.includes(node.op.name)) continue;
-    // Check if all successors are measurements
     const succs = dag.successors(node).filter(s => s.is_op_node());
     if (succs.length > 0 && succs.every(s => s.op.name === "measure")) {
       toRemove.push(node);
     }
   }
   for (const node of toRemove) {
-    dag.remove_op_node(node);
+    dag.removeOpNode(node);
   }
   return dag;
 }

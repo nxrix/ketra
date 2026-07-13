@@ -11,17 +11,27 @@
 [![License](https://img.shields.io/npm/l/@nxrix/ketra)](LICENSE)
 -->
 
-A JavaScript quantum computing framework inspired by Qiskit
+A JavaScript quantum computing framework inspired by Qiskit.
 
 ## Features
 
-- Circuits & Simulation
-- Algorithms (Grover, VQE, QAOA, HHL, Shor...)
-- Statevector, Density Matrix, Sparse Pauli Operators...
-- Noise models
-- OpenQASM 2 & 3
-- Transpiler & DAG circuits
-- Visualization (experimental), optimizers & primitives
+- Circuits & Simulation (statevector + noisy)
+- Algorithms: Grover, VQE, QAOA, HHL, Shor, VQC, QSVC, NumPy eigensolver
+- Quantum info: Statevector, DensityMatrix, Operator, Pauli, SparsePauliOp, Clifford, StabilizerState, channels
+- Noise models: depolarizing, bit flip, phase flip, amplitude/phase damping, Kraus, readout
+- OpenQASM 2 & 3 (parser + exporter)
+- Transpiler: layout (Trivial, Dense, Sabre), routing (Basic, Lookahead, Stochastic, Sabre), optimization passes
+- DAG circuit, converters, analysis passes
+- Primitives: Estimator/Sampler (V1 + V2)
+- Optimizers: COBYLA, SPSA, Adam, L-BFGS-B, SLSQP, Nelder-Mead, NFT, GradientDescent
+- Gradients: ParamShift, FiniteDiff, LinearCombination, NaturalGradient
+- Arithmetic circuits: adders, multipliers, comparators, QFT adder
+- Boolean logic gates: AND, OR, XOR, NAND, NOR, XNOR
+- Extra gates: UnitaryGate, DiagonalGate, PermutationGate, HamiltonianGate, Initialize, MCMT
+- Random generators: randomUnitary, randomStatevector, randomPauli, randomClifford
+- Entanglement measures: purity, concurrence, entanglementOfFormation, mutualInformation, gateFidelity
+- Circuit library: Bell, GHZ, QFT, QuantumVolume, RealAmplitudes, EfficientSU2, TwoLocal, GraphState
+- Visualization: text/ASCII circuit drawer
 
 ## Quick start
 
@@ -41,13 +51,13 @@ or
 import { QuantumCircuit, simulate } from "@nxrix/ketra";
 
 const qc = new QuantumCircuit(2, 2);
-qc.h(0);                               // Hadamard on qubit 0
-qc.cx(0, 1);                           // CNOT: qubit 0 controls qubit 1
-qc.measure(0, 0);                      // measure qubit 0 -> classical bit 0
-qc.measure(1, 1);                      // measure qubit 1 -> classical bit 1
+qc.h(0);
+qc.cx(0, 1);
+qc.measure(0, 0);
+qc.measure(1, 1);
 
-const result = simulate(qc, 1024);     // 1024 shots
-console.log(result.get_counts().to_dict());
+const result = simulate(qc, 1024);
+console.log(result.getCounts().toDict());
 console.log(qc.draw());
 ```
 Output:
@@ -67,13 +77,12 @@ c: 2/═══════════╩══╩═
 ```js
 import { QuantumCircuit, Grover } from "@nxrix/ketra";
 
-// Oracle: mark the |11> state with a phase flip
 const oracle = new QuantumCircuit(2);
 oracle.cz(0, 1);
 
 const grover = new Grover();
-const result = grover.amplify(oracle, 1);   // 1 marked item
-console.log(result.measurement);            // => { "11": 1024 }
+const result = grover.amplify(oracle, 1);
+console.log(result.measurement);
 ```
 
 ### Variational Quantum Eigensolver (VQE)
@@ -84,21 +93,20 @@ import {
   SparsePauliOp,
 } from "@nxrix/ketra";
 
-// Hamiltonian H = Z (ground state energy = -1)
-const hamiltonian = SparsePauliOp.from_list([["Z", 1.0]]);
+const hamiltonian = SparsePauliOp.fromList([["Z", 1.0]]);
 
-// Ansatz: RY(theta) on qubit 0
 const ansatz = new QuantumCircuit(1);
 const theta = new Parameter("theta");
 ansatz.ry(theta, 0);
 
 const vqe = new VQE({
   ansatz,
-  optimizer: new GradientDescent({ learning_rate: 0.5, maxiter: 50 }),
-  initial_point: [0.1],
+  optimizer: new GradientDescent({ learningRate: 0.5, maxIter: 50 }),
+  initialPoint: [0.1],
 });
 
-const result = vqe.compute_minimum_eigenvalue(hamiltonian);
-console.log(result.optimal_value);   // => -1.0 (within optimizer tolerance)
-console.log(result.optimal_parameters); // => { theta: ~3.14159 }
+const result = vqe.computeMinimumEigenvalue(hamiltonian);
+console.log(result.optimalValue);
+console.log(result.optimalParameters);
+```
 ```

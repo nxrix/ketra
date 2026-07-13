@@ -64,32 +64,32 @@ export class Statevector {
   }
 
   static fromInstruction(instruction) {
-    const nq = instruction.num_qubits;
+    const nq = instruction.numQubits;
     const sv = Statevector.zero(nq);
-    if (typeof instruction.to_matrix === "function") {
-      const m = instruction.to_matrix();
+    if (typeof instruction.toMatrix === "function") {
+      const m = instruction.toMatrix();
       return new Statevector(m.matvec(sv._data), nq);
     }
     throw new Error("Instruction has no matrix");
   }
 
   static fromCircuit(circuit, initState = null) {
-    let sv = initState ? initState.copy() : Statevector.zero(circuit.num_qubits);
+    let sv = initState ? initState.copy() : Statevector.zero(circuit.numQubits);
     for (const ci of circuit.data) {
       const op = ci.operation;
       if (op.name === "barrier") continue;
       if (op.name === "measure" || op.name === "reset") continue;
-      if (op.num_qubits === 0) continue;
-      if (typeof op.to_matrix !== "function") {
+      if (op.numQubits === 0) continue;
+      if (typeof op.toMatrix !== "function") {
         throw new Error(`Cannot evolve Statevector under non-unitary ${op.name}`);
       }
-      const fullOp = _embedGate(op, circuit.num_qubits, ci.qubits.map(q => circuit._qubit_index.get(q)));
-      sv = new Statevector(fullOp.matvec(sv._data), circuit.num_qubits);
+      const fullOp = _embedGate(op, circuit.numQubits, ci.qubits.map(q => circuit._qubit_index.get(q)));
+      sv = new Statevector(fullOp.matvec(sv._data), circuit.numQubits);
     }
     return sv;
   }
 
-  static from_int(index, numQubits) {
+  static fromInt(index, numQubits) {
     const data = ComplexVector.zeros(1 << numQubits);
     data.data[index] = Complex.ONE;
     return new Statevector(data, numQubits);
@@ -97,7 +97,7 @@ export class Statevector {
 
   get data() { return this._data; }
   get dim() { return this._data.size; }
-  get num_qubits() { return this._numQubits; }
+  get numQubits() { return this._numQubits; }
 
   copy() {
     return new Statevector(new ComplexVector(this._data.data.slice()), this._numQubits);
@@ -110,7 +110,7 @@ export class Statevector {
 
   norm() { return this._data.norm(); }
 
-  is_unitary() { return false; }
+  isUnitary() { return false; }
 
   probabilities(qargs = null) {
     const probs = this._data.probabilities();
@@ -123,17 +123,20 @@ export class Statevector {
     if (other instanceof Statevector) {
       return new Statevector(this._data.tensor(other._data), this._numQubits + other._numQubits);
     }
+    if (other instanceof ComplexMatrix) {
+      return new Statevector(other.matvec(this._data), this._numQubits);
+    }
     if (other && other._data && other._data instanceof ComplexMatrix) {
-      if (other.num_qubits !== this._numQubits) {
+      if (other.numQubits !== this._numQubits) {
         throw new Error("evolve: operator qubit count mismatch");
       }
       return new Statevector(other._data.matvec(this._data), this._numQubits);
     }
-    if (other && typeof other.to_matrix === "function") {
-      if (other.num_qubits !== this._numQubits) {
+    if (other && typeof other.toMatrix === "function") {
+      if (other.numQubits !== this._numQubits) {
         throw new Error("evolve: gate qubit count mismatch");
       }
-      return new Statevector(other.to_matrix().matvec(this._data), this._numQubits);
+      return new Statevector(other.toMatrix().matvec(this._data), this._numQubits);
     }
     if (other && other.data && other.data instanceof Array) {
       if (typeof Statevector.fromCircuit !== "function") {
@@ -166,7 +169,7 @@ export class Statevector {
     return results;
   }
 
-  sample_memory(counts = 1024, qargs = null, rng) {
+  sampleMemory(counts = 1024, qargs = null, rng) {
     const probs = this.probabilities(qargs);
     const nq = qargs == null ? this._numQubits : (Array.isArray(qargs) ? qargs.length : 1);
     const results = new Array(counts);
@@ -179,14 +182,14 @@ export class Statevector {
     return results;
   }
 
-  expectation_value(operator) {
+  expectationValue(operator) {
     const m = (operator instanceof ComplexMatrix) ? operator : operator._data;
     const op = m.matvec(this._data);
     return this._data.inner(op);
   }
 
   // Compute the density matrix rho = |psi><psi|
-  to_operator() {
+  toOperator() {
     const dim = this._data.size;
     const m = ComplexMatrix.zeros(dim, dim);
     for (let i = 0; i < dim; i++) {
@@ -222,7 +225,7 @@ export class Statevector {
     return true;
   }
 
-  to_dict() {
+  toDict() {
     const out = {};
     for (let i = 0; i < this._data.size; i++) {
       const bits = i.toString(2).padStart(this._numQubits, "0");
@@ -291,12 +294,12 @@ export class Statevector {
 
   // Partial trace: trace out the qubits NOT in `keep`, returning a
   // DensityMatrix on the kept qubits.
-  partial_trace(qargsToKeep) {
+  partialTrace(qargsToKeep) {
     const keep = Array.isArray(qargsToKeep) ? qargsToKeep : [qargsToKeep];
     // Build the density matrix of the full state, then partial-trace it.
-    const rho = this.to_operator(); // Operator on all qubits
+    const rho = this.toOperator(); // Operator on all qubits
     const traceOut = _complement(keep, this._numQubits);
-    const reducedOp = rho.partial_trace(traceOut);
+    const reducedOp = rho.partialTrace(traceOut);
     // Convert to a DensityMatrix (lazy to avoid circular import).
     if (!_DensityMatrixClass) {
       throw new Error("DensityMatrix class not registered. Import quantum_info/density_matrix.js first.");
@@ -306,7 +309,7 @@ export class Statevector {
 
   // Expand dimensions: tensor with |0...0> on `numQubits` additional qubits
   // at the front (high-order bits).
-  expand_dims(numQubits) {
+  expandDims(numQubits) {
     const newDim = this._data.size << numQubits;
     const newData = new Array(newDim).fill(Complex.ZERO);
     for (let i = 0; i < this._data.size; i++) {
@@ -328,11 +331,11 @@ export class Statevector {
 }
 
 function _embedGate(gate, numQubits, qubitIndices) {
-  if (typeof gate.to_matrix !== "function") {
+  if (typeof gate.toMatrix !== "function") {
     throw new Error("Cannot embed gate without matrix");
   }
-  const gateMatrix = gate.to_matrix();
-  if (gate.num_qubits !== qubitIndices.length) {
+  const gateMatrix = gate.toMatrix();
+  if (gate.numQubits !== qubitIndices.length) {
     throw new Error("embedGate: qubit count mismatch");
   }
   const dim = 1 << numQubits;

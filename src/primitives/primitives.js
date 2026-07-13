@@ -1,23 +1,9 @@
-/**
- * primitives.js - Estimator and Sampler primitives.
- *
- * *
- * The Estimator computes expectation values <ψ|O|ψ> for circuits and
- * observables (Pauli strings or SparsePauliOp).
- * The Sampler samples measurement outcomes from circuits.
- *
- * Both use the statevector simulator under the hood.
- */
-
-import { Complex, ComplexVector, ComplexMatrix } from "./../math/linalg.js";
 import { Statevector } from "./../quantum_info/statevector.js";
 import { SparsePauliOp, Pauli } from "./../quantum_info/pauli.js";
 import { simulate as _simulate } from "./../simulator/statevector_simulator.js";
 import { Result, Counts } from "./../result/result.js";
 
-// ---------------------------------------------------------------------------
 // Base classes
-// ---------------------------------------------------------------------------
 export class BaseEstimator {
   constructor(options = {}) {
     this.options = options;
@@ -36,9 +22,7 @@ export class BaseSampler {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Estimator result
-// ---------------------------------------------------------------------------
 export class EstimatorResult {
   constructor(values, metadata = []) {
     this.values = values;  // array of complex expectation values
@@ -47,15 +31,13 @@ export class EstimatorResult {
 }
 
 export class SamplerResult {
-  constructor(quasi_dists, metadata = []) {
-    this.quasi_dists = quasi_dists;
+  constructor(quasiDists, metadata = []) {
+    this.quasiDists = quasiDists;
     this.metadata = metadata;
   }
 }
 
-// ---------------------------------------------------------------------------
 // Estimator
-// ---------------------------------------------------------------------------
 export class Estimator extends BaseEstimator {
   constructor(options = {}) {
     super(options);
@@ -83,7 +65,7 @@ export class Estimator extends BaseEstimator {
 
       // Bind parameters if provided
       if (parameterValues && parameterValues[i]) {
-        circuit = circuit.bind_parameters(parameterValues[i]);
+        circuit = circuit.bindParameters(parameterValues[i]);
       }
 
       // Compute the statevector
@@ -94,15 +76,15 @@ export class Estimator extends BaseEstimator {
       if (observable instanceof SparsePauliOp) {
         spo = observable;
       } else if (observable instanceof Pauli) {
-        spo = SparsePauliOp.from_list([[observable.label, 1.0]]);
+        spo = SparsePauliOp.fromList([[observable.label, 1.0]]);
       } else if (typeof observable === "string") {
-        spo = SparsePauliOp.from_list([[observable, 1.0]]);
+        spo = SparsePauliOp.fromList([[observable, 1.0]]);
       } else {
         throw new TypeError("Observable must be Pauli, SparsePauliOp, or string");
       }
 
       // Compute <ψ|O|ψ>
-      const expVal = spo.expectation_value(sv);
+      const expVal = spo.expectationValue(sv);
       values.push(expVal);
       metadata.push({ shots: 0 });
     }
@@ -111,9 +93,7 @@ export class Estimator extends BaseEstimator {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Sampler
-// ---------------------------------------------------------------------------
 export class Sampler extends BaseSampler {
   constructor(options = {}) {
     super(options);
@@ -134,14 +114,14 @@ export class Sampler extends BaseSampler {
 
       // Bind parameters if provided
       if (parameterValues && parameterValues[i]) {
-        circuit = circuit.bind_parameters(parameterValues[i]);
+        circuit = circuit.bindParameters(parameterValues[i]);
       }
 
       // If the circuit has measurements, run the simulator
       const hasMeasure = circuit.data.some(ci => ci.operation.name === "measure");
       if (hasMeasure) {
         const result = _simulate(circuit, shots);
-        const counts = result.get_counts();
+        const counts = result.getCounts();
         // Convert to quasi-probability distribution
         const quasi = {};
         const total = counts.shots;
@@ -167,9 +147,7 @@ export class Sampler extends BaseSampler {
   }
 }
 
-// ---------------------------------------------------------------------------
 // V2 primitives (qiskit 1.0+ API)
-// ---------------------------------------------------------------------------
 // The V2 API uses a "primitive job" pattern: run() returns a job object that
 // can be awaited for results. Since JS is single-threaded here, we return
 // the result synchronously wrapped in a minimal job-like interface.
@@ -189,8 +167,8 @@ export class EstimatorResultV2 {
 }
 
 export class SamplerResultV2 {
-  constructor(pub_results, metadata = {}) {
-    this.pub_results = pub_results;
+  constructor(pubResults, metadata = {}) {
+    this.pubResults = pubResults;
     this.metadata = metadata;
   }
 }
@@ -208,21 +186,21 @@ export class PrimitivePubResult {
 export class EstimatorV2 extends BaseEstimator {
   constructor(options = {}) {
     super(options);
-    this.default_precision = options.default_precision || 0.0;
-    this.default_shots = options.default_shots || 1024;
+    this.defaultPrecision = options.defaultPrecision || 0.0;
+    this.defaultShots = options.defaultShots || 1024;
   }
 
   run(pubs, options = {}) {
     if (!Array.isArray(pubs)) pubs = [pubs];
-    const precision = options.default_precision || this.default_precision;
-    const shots = options.default_shots || this.default_shots;
+    const precision = options.defaultPrecision || this.defaultPrecision;
+    const shots = options.defaultShots || this.defaultShots;
     const results = [];
     for (const pub of pubs) {
       // pub is [circuit, observables, parameter_values]
       const [circuit, observables, parameterValues] = pub;
       let boundCircuit = circuit;
       if (parameterValues) {
-        boundCircuit = circuit.bind_parameters(parameterValues);
+        boundCircuit = circuit.bindParameters(parameterValues);
       }
       const sv = Statevector.fromCircuit(boundCircuit);
       // observables can be a single SparsePauliOp or a list.
@@ -232,10 +210,10 @@ export class EstimatorV2 extends BaseEstimator {
       for (const obs of obsList) {
         let spo;
         if (obs instanceof SparsePauliOp) spo = obs;
-        else if (obs instanceof Pauli) spo = SparsePauliOp.from_list([[obs.label, 1.0]]);
-        else if (typeof obs === "string") spo = SparsePauliOp.from_list([[obs, 1.0]]);
+        else if (obs instanceof Pauli) spo = SparsePauliOp.fromList([[obs.label, 1.0]]);
+        else if (typeof obs === "string") spo = SparsePauliOp.fromList([[obs, 1.0]]);
         else throw new TypeError("EstimatorV2: observable must be Pauli, SparsePauliOp, or string");
-        const expVal = spo.expectation_value(sv);
+        const expVal = spo.expectationValue(sv);
         const ev = typeof expVal === "number" ? expVal : expVal.re;
         evs.push(ev);
         // For exact statevector simulation, the standard deviation is 0.
@@ -252,19 +230,19 @@ export class EstimatorV2 extends BaseEstimator {
 export class SamplerV2 extends BaseSampler {
   constructor(options = {}) {
     super(options);
-    this.default_shots = options.default_shots || 1024;
+    this.defaultShots = options.defaultShots || 1024;
   }
 
   run(pubs, options = {}) {
     if (!Array.isArray(pubs)) pubs = [pubs];
-    const defaultShots = options.default_shots || this.default_shots;
+    const defaultShots = options.defaultShots || this.defaultShots;
     const results = [];
     for (const pub of pubs) {
       // pub is [circuit, parameter_values, shots]
       const [circuit, parameterValues, shots] = pub;
       let boundCircuit = circuit;
       if (parameterValues) {
-        boundCircuit = circuit.bind_parameters(parameterValues);
+        boundCircuit = circuit.bindParameters(parameterValues);
       }
       const numShots = shots || defaultShots;
       // Run the simulator with measurements.
@@ -273,7 +251,7 @@ export class SamplerV2 extends BaseSampler {
       let measBits;
       if (hasMeasure) {
         const result = _simulate(boundCircuit, numShots);
-        const counts = result.get_counts();
+        const counts = result.getCounts();
         quasi = {};
         const total = counts.shots;
         for (const [key, val] of counts.items()) {

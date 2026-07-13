@@ -1,25 +1,12 @@
-/**
- * standard_gates.js - The canonical set of single- and multi-qubit gates.
- *
- * Each gate is a Gate instance
- * with a matrix builder. On import, registers the gates with the circuit module
- * so that circuit.h(q), circuit.cx(c, t), etc. resolve correctly.
- *
- * Matrices are constructed via ComplexMatrix.fromRows for clarity. Each entry
- * is a Complex number.
- */
-
 import { Complex, ComplexMatrix } from "./../math/linalg.js";
-import { Gate, ControlledGate } from "./../core/gate.js";
+import { Gate } from "./../core/gate.js";
 import { _registerStd } from "./../core/circuit.js";
 
 const PI = Math.PI;
 const SQRT2 = Math.SQRT2;
 const r = (re, im = 0) => new Complex(re, im);
 
-// ---------------------------------------------------------------------------
 // Single-qubit gates
-// ---------------------------------------------------------------------------
 export function makeHGate() {
   const g = new Gate("h", 1, []);
   const v = 1 / SQRT2;
@@ -117,9 +104,7 @@ export function makeIGate() {
   return g;
 }
 
-// ---------------------------------------------------------------------------
 // Two-qubit gates
-// ---------------------------------------------------------------------------
 export function makeCXGate() {
   const g = new Gate("cx", 2, []);
   g._matrixBuilder = () => ComplexMatrix.fromRows([
@@ -209,9 +194,7 @@ export function makeDCXGate() {
   return g;
 }
 
-// ---------------------------------------------------------------------------
 // Three-qubit gates
-// ---------------------------------------------------------------------------
 export function makeCCXGate() {
   const g = new Gate("ccx", 3, []);
   g._matrixBuilder = () => {
@@ -238,9 +221,7 @@ export function makeCSwapGate() {
   return g;
 }
 
-// ---------------------------------------------------------------------------
 // Registration
-// ---------------------------------------------------------------------------
 export const HGate = makeHGate();
 export const XGate = makeXGate();
 export const YGate = makeYGate();

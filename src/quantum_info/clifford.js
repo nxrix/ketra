@@ -1,20 +1,6 @@
-/**
- * clifford.js - Clifford and StabilizerState classes.
- *
- * *
- * A Clifford is represented by the symplectic stabilizer table:
- *   - x: n×n binary matrix (X parts of stabilizer generators)
- *   - z: n×n binary matrix (Z parts of stabilizer generators)
- *   - signs: n-bit vector (the +/- sign of each generator)
- *
- * Rows 0..n-1 are the stabilizers, rows n..2n-1 are the destabilizers.
- */
-
 import { Complex, ComplexMatrix, ComplexVector, PAULI } from "./../math/linalg.js";
 import { Pauli } from "./pauli.js";
 import { Statevector } from "./statevector.js";
-import { QuantumCircuit } from "./../core/circuit.js";
-import { UnitaryGate } from "./../library/extra_gates.js";
 
 export class Clifford {
   constructor(data) {
@@ -27,14 +13,12 @@ export class Clifford {
       this.z = data.z.map(row => row.slice());
       this.signs = (data.signs || new Array(data.x.length).fill(0)).slice();
       // The symplectic tableau has 2n rows (n destabilizers + n stabilizers),
-      // so num_qubits = x.length / 2. (Older code incorrectly set
-      // num_qubits = x.length, which broke compose / fromStabilizers /
-      // to_matrix whenever the tableau form was used.)
-      this.num_qubits = data.x.length / 2;
-      if (!Number.isInteger(this.num_qubits)) {
+      // so numQubits = x.length / 2.
+      this.numQubits = data.x.length / 2;
+      if (!Number.isInteger(this.numQubits)) {
         throw new Error(
           `Clifford: tableau must have 2n rows (got ${data.x.length}); ` +
-          `num_qubits would be non-integer.`
+          `numQubits would be non-integer.`
         );
       }
     } else if (typeof data === "string") {
@@ -42,14 +26,14 @@ export class Clifford {
       // The stabilizer tableau has 2n rows: the first n are destabilizers
       // (X_0, X_1, ..., X_{n-1}) and the last n are stabilizers
       // (Z_i if |q_i>=0, -X_i if |q_i>=1).
-      this.num_qubits = data.length;
+      this.numQubits = data.length;
       this.x = [];
       this.z = [];
       this.signs = [];
       // Destabilizers: X_0, X_1, ..., X_{n-1}
-      for (let i = 0; i < this.num_qubits; i++) {
-        const xRow = new Array(this.num_qubits).fill(0);
-        const zRow = new Array(this.num_qubits).fill(0);
+      for (let i = 0; i < this.numQubits; i++) {
+        const xRow = new Array(this.numQubits).fill(0);
+        const zRow = new Array(this.numQubits).fill(0);
         xRow[i] = 1;
         this.x.push(xRow);
         this.z.push(zRow);
@@ -57,9 +41,9 @@ export class Clifford {
       }
       // Stabilizers: Z_i for |0>, -Z_i for |1> (since Z|0>=+|0>, Z|1>=-|1>,
       // so |1> is the +1 eigenstate of -Z).
-      for (let i = 0; i < this.num_qubits; i++) {
-        const xRow = new Array(this.num_qubits).fill(0);
-        const zRow = new Array(this.num_qubits).fill(0);
+      for (let i = 0; i < this.numQubits; i++) {
+        const xRow = new Array(this.numQubits).fill(0);
+        const zRow = new Array(this.numQubits).fill(0);
         const bit = parseInt(data[data.length - 1 - i], 10);
         if (bit === 1) {
           // |1>: stabilizer is -Z_i (sign=1 means negative)
@@ -78,14 +62,14 @@ export class Clifford {
       // providing a full set of n mutually commuting stabilizers; we add
       // canonical X_i destabilizers.
       const paulis = data.map(l => new Pauli(l));
-      this.num_qubits = paulis[0].num_qubits;
+      this.numQubits = paulis[0].numQubits;
       this.x = [];
       this.z = [];
       this.signs = [];
       // Destabilizers: X_i
-      for (let i = 0; i < this.num_qubits; i++) {
-        const xRow = new Array(this.num_qubits).fill(0);
-        const zRow = new Array(this.num_qubits).fill(0);
+      for (let i = 0; i < this.numQubits; i++) {
+        const xRow = new Array(this.numQubits).fill(0);
+        const zRow = new Array(this.numQubits).fill(0);
         xRow[i] = 1;
         this.x.push(xRow);
         this.z.push(zRow);
@@ -104,12 +88,12 @@ export class Clifford {
 
   static fromCircuit(circuit) {
     // Start with |0...0> stabilizers: Z_0, Z_1, ..., Z_{n-1}
-    const n = circuit.num_qubits;
+    const n = circuit.numQubits;
     const cliff = Clifford.fromLabel("0".repeat(n));
     for (const ci of circuit.data) {
       const op = ci.operation;
       if (op.name === "barrier" || op.name === "measure" || op.name === "reset") continue;
-      if (op.num_qubits === 0) continue;
+      if (op.numQubits === 0) continue;
       const targets = ci.qubits.map(q => circuit._qubit_index.get(q));
       cliff._applyGate(op.name, targets, op.params || []);
     }
@@ -198,10 +182,9 @@ export class Clifford {
 
   // Apply gates directly to the stabilizer table.
   // Decompositions of X, Y, Z into H and S are written so that the
-  // conjugation action matches the standard Pauli definitions exactly
-  // (the previous implementation used sequences that produced Z when X
-  // was requested, etc.). Verified against the canonical Clifford-action
-  // table for single-qubit Paulis.
+  // conjugation action matches the standard Pauli definitions exactly,
+  // verified against the canonical Clifford-action table for single-qubit
+  // Paulis.
   _applyGate(name, targets, params) {
     switch (name) {
       case "h": case "H": this._h(targets[0]); break;
@@ -243,10 +226,9 @@ export class Clifford {
 
   // Apply H to qubit q
   _h(q) {
-    for (let i = 0; i < this.num_qubits * 2; i++) {
+    for (let i = 0; i < this.numQubits * 2; i++) {
       const xBit = this.x[i][q];
       const zBit = this.z[i][q];
-      // Swap x and z
       this.x[i][q] = zBit;
       this.z[i][q] = xBit;
       // Update sign: -1 if x=1 and z=1 (Y -> -Y under H)
@@ -258,7 +240,7 @@ export class Clifford {
 
   // Apply S to qubit q
   _s(q) {
-    for (let i = 0; i < this.num_qubits * 2; i++) {
+    for (let i = 0; i < this.numQubits * 2; i++) {
       const xBit = this.x[i][q];
       const zBit = this.z[i][q];
       // S: X -> Y, Y -> -X, Z -> Z
@@ -272,8 +254,7 @@ export class Clifford {
 
   // Apply CNOT(control, target)
   _cx(control, target) {
-    for (let i = 0; i < this.num_qubits * 2; i++) {
-      // Update sign
+    for (let i = 0; i < this.numQubits * 2; i++) {
       const xc = this.x[i][control];
       const zc = this.z[i][control];
       const xt = this.x[i][target];
@@ -300,12 +281,12 @@ export class Clifford {
   //
   // Cost: O(2^n · (n + 2^n)) — exponential, but unavoidable since the
   // output matrix has 4^n entries. Practical for n ≤ 8 or so.
-  to_matrix() {
-    const n = this.num_qubits;
+  toMatrix() {
+    const n = this.numQubits;
     const dim = 1 << n;
 
     // Compute U|0> as a stabilizer state.
-    const uZero = new StabilizerState(this).to_statevector();
+    const uZero = new StabilizerState(this).toStatevector();
     const uZeroVec = uZero._data.data; // array of Complex
 
     // Precompute the destabilizer Paulis (top n rows) as {x, z, sign}.
@@ -385,10 +366,10 @@ export class Clifford {
   // preserves the Pauli group structure, so the result is again a valid
   // Clifford tableau.
   compose(other) {
-    if (this.num_qubits !== other.num_qubits) {
+    if (this.numQubits !== other.numQubits) {
       throw new Error("compose: qubit count mismatch");
     }
-    const n = this.num_qubits;
+    const n = this.numQubits;
     const newX = [];
     const newZ = [];
     const newSigns = [];
@@ -422,7 +403,7 @@ export class Clifford {
   // Conjugation by a Clifford maps Paulis to Paulis (up to phase ±1, never
   // ±i), so the result is always expressible in the standard tableau form.
   _conjugatePauli(inX, inZ, inSign) {
-    const n = this.num_qubits;
+    const n = this.numQubits;
 
     // Track the result as a Pauli (currentPauli) plus an extra phase
     // (currentPhase). Pauli.compose gives us the new Pauli and the phase
@@ -478,17 +459,17 @@ export class Clifford {
     return { x: currentPauli.x, z: currentPauli.z, sign };
   }
 
-  to_dict() {
+  toDict() {
     return {
-      stabilizer: this.x.slice(0, this.num_qubits).map((xRow, i) => ({
+      stabilizer: this.x.slice(0, this.numQubits).map((xRow, i) => ({
         x: xRow.slice(),
         z: this.z[i].slice(),
         sign: this.signs[i],
       })),
-      destabilizer: this.x.slice(this.num_qubits).map((xRow, i) => ({
+      destabilizer: this.x.slice(this.numQubits).map((xRow, i) => ({
         x: xRow.slice(),
-        z: this.z[this.num_qubits + i].slice(),
-        sign: this.signs[this.num_qubits + i],
+        z: this.z[this.numQubits + i].slice(),
+        sign: this.signs[this.numQubits + i],
       })),
     };
   }
@@ -497,16 +478,16 @@ export class Clifford {
   // U · U^† = I. Computed by inverting the tableau's symplectic part and
   // recomputing the signs.
   adjoint() {
-    const n = this.num_qubits;
+    const n = this.numQubits;
     // The Clifford tableau is a 2n × 2n symplectic matrix over GF(2).
     // Its inverse can be computed via Gaussian elimination, but the sign
     // bookkeeping is intricate. The simplest correct approach: build the
-    // unitary via to_matrix(), then dagger it, then reconstruct the
+    // unitary via toMatrix(), then dagger it, then reconstruct the
     // Clifford from a circuit that applies the daggered unitary.
-    // Since to_matrix is exponential, this is only practical for small n.
+    // Since toMatrix is exponential, this is only practical for small n.
     // For larger n, we'd implement the symplectic inverse directly.
     // For now, we use the matrix approach.
-    const m = this.to_matrix();
+    const m = this.toMatrix();
     const mDag = m.dagger();
     // Build a circuit that applies mDag and convert to Clifford.
     // Easier: apply the inverse of each generator step.
@@ -519,7 +500,7 @@ export class Clifford {
 
   // Compose this Clifford with itself n times. For n=0 returns identity.
   power(n) {
-    if (n === 0) return Clifford.fromLabel("0".repeat(this.num_qubits));
+    if (n === 0) return Clifford.fromLabel("0".repeat(this.numQubits));
     if (n < 0) return this.adjoint().power(-n);
     let result = this;
     for (let i = 1; i < n; i++) result = result.compose(this);
@@ -534,9 +515,9 @@ export class Clifford {
 
   equals(other) {
     if (!(other instanceof Clifford)) return false;
-    if (this.num_qubits !== other.num_qubits) return false;
+    if (this.numQubits !== other.numQubits) return false;
     for (let i = 0; i < this.x.length; i++) {
-      for (let q = 0; q < this.num_qubits; q++) {
+      for (let q = 0; q < this.numQubits; q++) {
         if (this.x[i][q] !== other.x[i][q]) return false;
         if (this.z[i][q] !== other.z[i][q]) return false;
       }
@@ -546,14 +527,14 @@ export class Clifford {
   }
 
   toString() {
-    return `Clifford(num_qubits=${this.num_qubits})`;
+    return `Clifford(numQubits=${this.numQubits})`;
   }
 }
 
 // Build a Clifford from stabilizer generators (Pauli labels)
 Clifford.fromStabilizers = function(labels) {
   const paulis = labels.map(l => new Pauli(l));
-  const n = paulis[0].num_qubits;
+  const n = paulis[0].numQubits;
   // Destabilizers are the canonical X_i (or some other mutually unbiased set)
   const x = [];
   const z = [];
@@ -583,7 +564,7 @@ export class StabilizerState {
     } else {
       this.clifford = new Clifford(clifford);
     }
-    this.num_qubits = this.clifford.num_qubits;
+    this.numQubits = this.clifford.numQubits;
   }
 
   static fromLabel(label) {
@@ -599,7 +580,7 @@ export class StabilizerState {
     // For a stabilizer state, the probabilities can be computed in polynomial
     // time via Gaussian elimination on the stabilizer table.
     // Simple approach: convert to statevector (works for small n only).
-    const sv = this.to_statevector();
+    const sv = this.toStatevector();
     if (!sv) return [];
     return sv.probabilities(qargs);
   }
@@ -623,8 +604,8 @@ export class StabilizerState {
   //   amp_j = (1/2ⁿ) · Σ_{P with x_P = j XOR i*} fullPhase_P · (-1)^{popcount(i* AND z_P)}
   //
   // Cost: O(4ⁿ) — fine for n ≤ 10.
-  to_statevector() {
-    const n = this.num_qubits;
+  toStatevector() {
+    const n = this.numQubits;
     const dim = 1 << n;
 
     // Compute all 2ⁿ stabilizer group elements as {x, z, fullPhase} where
@@ -699,7 +680,7 @@ export class StabilizerState {
     }
     if (refState < 0) {
       throw new Error(
-        "StabilizerState.to_statevector: could not find a reference state " +
+        "StabilizerState.toStatevector: could not find a reference state " +
         "with non-zero overlap (invalid stabilizer state)"
       );
     }
@@ -741,28 +722,20 @@ export class StabilizerState {
   //     every generator but aren't group elements),
   //   - ±1 if P is in the stabilizer group (the sign is the eigenvalue).
   //
-  // The previous implementation returned +1 for every Pauli that merely
-  // commuted with all stabilizer generators, which gave wrong answers for
-  // states like |1⟩ (where ⟨1|Z|1⟩ = −1, not +1) and for Bell states
-  // (where ⟨Bell|ZI|Bell⟩ = 0 since ZI commutes with ZZ and XX but is not
-  // itself a group element).
-  //
   // We brute-force enumerate the 2^n products of the n stabilizer
   // generators and check if any product equals P (up to phase). The
   // accumulated phase of the matching product is the eigenvalue.
   // Cost: O(2^n · n) — fine for n ≤ 16 or so.
-  expectation_value(pauli) {
+  expectationValue(pauli) {
     if (!(pauli instanceof Pauli)) pauli = new Pauli(pauli);
-    const n = this.num_qubits;
+    const n = this.numQubits;
     if (pauli.label === "I".repeat(n)) {
       return new Complex(1, 0);
     }
     const dim = 1 << n;
-    // Target Pauli's x and z parts.
     const targetX = pauli.x;
     const targetZ = pauli.z;
 
-    // Enumerate all 2^n products of stabilizer generators.
     for (let subset = 0; subset < dim; subset++) {
       let x = new Array(n).fill(0);
       let z = new Array(n).fill(0);
@@ -826,9 +799,9 @@ export class StabilizerState {
 
   equals(other, tol) {
     if (!(other instanceof StabilizerState)) return false;
-    if (this.num_qubits !== other.num_qubits) return false;
+    if (this.numQubits !== other.numQubits) return false;
     for (let i = 0; i < this.clifford.x.length; i++) {
-      for (let q = 0; q < this.num_qubits; q++) {
+      for (let q = 0; q < this.numQubits; q++) {
         if (this.clifford.x[i][q] !== other.clifford.x[i][q]) return false;
         if (this.clifford.z[i][q] !== other.clifford.z[i][q]) return false;
       }

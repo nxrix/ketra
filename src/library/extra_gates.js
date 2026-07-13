@@ -1,29 +1,13 @@
-/**
- * extra_gates.js - Additional gate types matching qiskit.extensions and
- * qiskit.circuit.library.
- *
- * Implements:
- *   - UnitaryGate      (arbitrary 2^n x 2^n unitary)
- *   - DiagonalGate     (diagonal unitary, given as a list of phases)
- *   - PermutationGate  (qubit permutation)
- *   - HamiltonianGate  (e^{-iHt} for a Hermitian H)
- *   - Initialize       (state preparation from amplitudes or labels)
- *   - MCRYGate / MCRXGate / MCRZGate / MCPhaseGate (multi-controlled rotations)
- *   - MCMTGate         (multi-control multi-target)
- */
-
 import { Complex, ComplexMatrix } from "./../math/linalg.js";
 import { Gate, ControlledGate, Instruction } from "./../core/gate.js";
-import { _registerParamBuilder, _registerStd, _registerExtraGateClass } from "./../core/circuit.js";
+import { _registerParamBuilder, _registerExtraGateClass } from "./../core/circuit.js";
 import { Statevector } from "./../quantum_info/statevector.js";
 import { SparsePauliOp } from "./../quantum_info/pauli.js";
 import { Operator } from "./../quantum_info/operator.js";
 
 const r = (re, im = 0) => new Complex(re, im);
 
-// ---------------------------------------------------------------------------
 // UnitaryGate: an arbitrary 2^n × 2^n unitary matrix.
-// ---------------------------------------------------------------------------
 export class UnitaryGate extends Gate {
   constructor(matrix, label = null) {
     // Accept a ComplexMatrix, an Operator, or a 2D array of Complex / numbers.
@@ -56,7 +40,7 @@ export class UnitaryGate extends Gate {
   }
 
   // Allow a unitary gate to be parameter-bound (it has no parameters, so
-  // this is a no-op, but bind_parameters calls it).
+  // this is a no-op, but bindParameters calls it).
   bind() { return this; }
 
   control(numCtrl = 1) {
@@ -64,9 +48,7 @@ export class UnitaryGate extends Gate {
   }
 }
 
-// ---------------------------------------------------------------------------
 // DiagonalGate: a diagonal unitary U = diag(e^{i*diag[0]}, ..., e^{i*diag[d-1]}).
-// ---------------------------------------------------------------------------
 export class DiagonalGate extends Gate {
   constructor(diag) {
     const n = Math.log2(diag.length);
@@ -91,12 +73,10 @@ export class DiagonalGate extends Gate {
   }
 }
 
-// ---------------------------------------------------------------------------
 // PermutationGate: permutes qubits according to a pattern.
 //   pattern = [2, 0, 1] means qubit 0 → position 2, qubit 1 → position 0,
 //   qubit 2 → position 1. (qiskit's convention: pattern[i] = which qubit
 //   ends up at position i.)
-// ---------------------------------------------------------------------------
 export class PermutationGate extends Gate {
   constructor(pattern) {
     const n = pattern.length;
@@ -122,9 +102,7 @@ export class PermutationGate extends Gate {
   copy() { return new PermutationGate(this._pattern); }
 }
 
-// ---------------------------------------------------------------------------
 // HamiltonianGate: U = e^{-i * time * H}, where H is a Hermitian operator.
-// ---------------------------------------------------------------------------
 export class HamiltonianGate extends Gate {
   constructor(operator, time, label = null) {
     let mat;
@@ -133,7 +111,7 @@ export class HamiltonianGate extends Gate {
     } else if (operator && operator._data instanceof ComplexMatrix) {
       mat = operator._data;
     } else if (operator instanceof SparsePauliOp) {
-      mat = operator.to_matrix();
+      mat = operator.toMatrix();
     } else if (Array.isArray(operator)) {
       mat = ComplexMatrix.fromRows(operator.map(row =>
         row.map(v => v instanceof Complex ? v : r(v))
@@ -162,10 +140,8 @@ export class HamiltonianGate extends Gate {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Initialize: state preparation. U|0...0> = |psi>, where |psi> is given as
 // amplitudes or as a state label.
-// ---------------------------------------------------------------------------
 export class Initialize extends Instruction {
   constructor(amplitudes, numQubits = null) {
     let amps;
@@ -200,9 +176,7 @@ export class Initialize extends Instruction {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Multi-controlled rotation gates.
-// ---------------------------------------------------------------------------
 export class MCPhaseGate extends Gate {
   constructor(lambda, numCtrlQubits) {
     super("mcphase", numCtrlQubits + 1, [lambda]);
@@ -292,10 +266,8 @@ export class MCRZGate extends Gate {
   copy() { return new MCRZGate(this._theta, this._numCtrl); }
 }
 
-// ---------------------------------------------------------------------------
 // MCMTGate: Multi-Control Multi-Target gate.
-//   Applies `base_gate` to each target qubit when all control qubits are |1>.
-// ---------------------------------------------------------------------------
+//   Applies `baseGate` to each target qubit when all control qubits are |1>.
 export class MCMTGate extends Gate {
   constructor(baseGate, numCtrlQubits, numTargetQubits) {
     super("mcmt", numCtrlQubits + numTargetQubits, baseGate.params.slice());
@@ -303,27 +275,23 @@ export class MCMTGate extends Gate {
     this._numCtrl = numCtrlQubits;
     this._numTarget = numTargetQubits;
     this._matrixBuilder = () => {
-      const baseMat = baseGate.to_matrix();
-      const baseDim = baseMat.rows; // 2^(base num_qubits), typically 2
+      const baseMat = baseGate.toMatrix();
+      const baseDim = baseMat.rows; // 2^(base numQubits), typically 2
       if (numTargetQubits === 1 && baseDim === 2) {
         // Single-target MCMT is just a controlled version of the base gate.
         const cg = new ControlledGate(baseGate, numCtrlQubits);
-        return cg.to_matrix();
+        return cg.toMatrix();
       }
       // For multi-target, build the full unitary by stacking controlled
       // versions of the base gate on each target.
       // The full Hilbert space is 2^(numCtrl + numTarget).
       const totalDim = 1 << (numCtrlQubits + numTargetQubits);
       const m = ComplexMatrix.identity(totalDim);
-      // For each target qubit position, when all controls are |1>, apply
-      // the base gate to that target.
       const ctrlOn = (1 << numCtrlQubits) - 1;
       // The block where all controls are |1> has the target qubits in
       // positions [numCtrl, numCtrl+1, ..., numCtrl+numTarget-1].
-      // We apply I⊗...⊗I⊗base to each target individually.
-      // For simplicity (and matching qiskit's behavior for the common
-      // case of single-qubit base gates), we apply the base gate
-      // simultaneously to all targets via tensor product.
+      // We apply the base gate simultaneously to all targets via tensor
+      // product (matching qiskit's behavior for single-qubit base gates).
       const targetBlockDim = 1 << numTargetQubits;
       // Build the target-block unitary: base^{⊗ numTarget}.
       let targetU = baseMat;

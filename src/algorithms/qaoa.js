@@ -1,30 +1,21 @@
-/**
- * qaoa.js - Quantum Approximate Optimization Algorithm.
- *
- * Solves combinatorial optimization problems by mapping them to a cost
- * Hamiltonian and applying alternating layers of cost and mixer unitaries.
- *
- * Reference: Farhi, Goldstone, Gutmann (2014).
- */
-
 import { Complex } from "./../math/linalg.js";
 import { QuantumCircuit } from "./../core/circuit.js";
 import { Parameter } from "./../core/parameter.js";
 import { SparsePauliOp, Pauli } from "./../quantum_info/pauli.js";
 import { Statevector } from "./../quantum_info/statevector.js";
 import { Estimator } from "./../primitives/primitives.js";
-import { SPSA, OptimizerResult } from "./optimizers.js";
+import { SPSA } from "./optimizers.js";
 import { pauliEvolution } from "./../library/circuits.js";
 
 export class QAOAResult {
   constructor(kwargs = {}) {
-    this.optimal_parameters = kwargs.optimal_parameters || {};
-    this.optimal_value = kwargs.optimal_value || 0;
-    this.optimal_circuit = kwargs.optimal_circuit || null;
-    this.optimal_state = kwargs.optimal_state || null;
-    this.cost_function_evals = kwargs.cost_function_evals || 0;
-    this.eigenvalue = this.optimal_value;
-    this.eigenstate = this.optimal_state;
+    this.optimalParameters = kwargs.optimalParameters || {};
+    this.optimalValue = kwargs.optimalValue || 0;
+    this.optimalCircuit = kwargs.optimalCircuit || null;
+    this.optimalState = kwargs.optimalState || null;
+    this.costFunctionEvals = kwargs.costFunctionEvals || 0;
+    this.eigenvalue = this.optimalValue;
+    this.eigenstate = this.optimalState;
   }
 }
 
@@ -40,9 +31,9 @@ export class QAOA {
 
   // Compute the minimum eigenvalue of `operator` (cost Hamiltonian).
   // operator: SparsePauliOp representing the cost Hamiltonian H_C
-  compute_minimum_eigenvalue(operator, options = {}) {
+  computeMinimumEigenvalue(operator, options = {}) {
     if (!operator) throw new Error("QAOA: cost operator is required");
-    const numQubits = operator.num_qubits;
+    const numQubits = operator.numQubits;
 
     // Default mixer: H_M = sum_i X_i
     let mixerOp;
@@ -54,7 +45,7 @@ export class QAOA {
         const label = "I".repeat(i) + "X" + "I".repeat(numQubits - i - 1);
         mixerTerms.push([label, 1.0]);
       }
-      mixerOp = SparsePauliOp.from_list(mixerTerms);
+      mixerOp = SparsePauliOp.fromList(mixerTerms);
     }
 
     // Build QAOA ansatz with p layers.
@@ -80,7 +71,7 @@ export class QAOA {
     for (let p = 0; p < this.reps; p++) {
       // Cost: exp(-i gamma_p * H_C). Apply each Pauli term via the standard
       // Pauli-evolution decomposition (basis change + CNOT chain + RZ).
-      for (const [label, coeff] of operator.to_list()) {
+      for (const [label, coeff] of operator.toList()) {
         if (label === "I".repeat(numQubits)) continue;
         const cr = (coeff instanceof Complex) ? coeff.re : Number(coeff);
         const ci = (coeff instanceof Complex) ? coeff.im : 0;
@@ -104,12 +95,11 @@ export class QAOA {
     const paramNames = gammaParams.concat(betaParams).map(p => p.name);
     const x0 = new Array(paramNames.length).fill(0.5);
 
-    // Objective
     let evalCount = 0;
     const objectiveFn = (x) => {
       const params = {};
       for (let i = 0; i < paramNames.length; i++) params[paramNames[i]] = x[i];
-      const boundAnsatz = ansatz.bind_parameters(params);
+      const boundAnsatz = ansatz.bindParameters(params);
       const result = this.estimator.run(boundAnsatz, operator);
       const value = result.values[0];
       evalCount++;
@@ -123,15 +113,15 @@ export class QAOA {
     for (let i = 0; i < paramNames.length; i++) {
       optimalParams[paramNames[i]] = optResult.x[i];
     }
-    const optimalCircuit = ansatz.bind_parameters(optimalParams);
+    const optimalCircuit = ansatz.bindParameters(optimalParams);
     const optimalState = Statevector.fromCircuit(optimalCircuit);
 
     return new QAOAResult({
-      optimal_parameters: optimalParams,
-      optimal_value: optResult.fun,
-      optimal_circuit: optimalCircuit,
-      optimal_state: optimalState,
-      cost_function_evals: evalCount,
+      optimalParameters: optimalParams,
+      optimalValue: optResult.fun,
+      optimalCircuit: optimalCircuit,
+      optimalState: optimalState,
+      costFunctionEvals: evalCount,
     });
   }
 }

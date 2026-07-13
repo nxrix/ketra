@@ -1,22 +1,13 @@
-/**
- * optimizers_extra.js - Additional classical optimizers.
- *
- * Adam, L-BFGS-B (approximate), SLSQP (sequential least squares),
- * and a proper Nelder-Mead.
- */
-
 import { OptimizerResult } from "./optimizers.js";
 
-// ---------------------------------------------------------------------------
 // Adam (Adaptive Moment Estimation)
-// ---------------------------------------------------------------------------
 export class Adam {
   constructor(options = {}) {
-    this.learning_rate = options.learning_rate || 0.001;
+    this.learningRate = options.learningRate || 0.001;
     this.beta1 = options.beta1 || 0.9;
     this.beta2 = options.beta2 || 0.999;
     this.epsilon = options.epsilon || 1e-8;
-    this.max_iter = options.maxiter || 100;
+    this.maxIter = options.maxiter || 100;
     this.tolerance = options.tolerance || 1e-6;
   }
 
@@ -29,7 +20,7 @@ export class Adam {
     const history = [{ x: x.slice(), fun: fx }];
     let bestX = x.slice(), bestFx = fx;
 
-    for (let t = 1; t <= this.max_iter; t++) {
+    for (let t = 1; t <= this.maxIter; t++) {
       let grad;
       if (gradientFn) {
         grad = gradientFn(x);
@@ -49,7 +40,7 @@ export class Adam {
       const vHat = v.map(vi => vi / (1 - Math.pow(this.beta2, t)));
 
       // Update parameters
-      const newX = x.map((xi, i) => xi - this.learning_rate * mHat[i] / (Math.sqrt(vHat[i]) + this.epsilon));
+      const newX = x.map((xi, i) => xi - this.learningRate * mHat[i] / (Math.sqrt(vHat[i]) + this.epsilon));
       const newFx = objectiveFn(newX);
       nfev++;
       history.push({ x: newX.slice(), fun: newFx });
@@ -76,21 +67,19 @@ export class Adam {
   }
 }
 
-// ---------------------------------------------------------------------------
 // L-BFGS-B (Limited-memory BFGS with box constraints)
-// ---------------------------------------------------------------------------
 // Implements the two-loop recursion L-BFGS algorithm with optional box
 // constraints (lower/upper bounds per parameter). This is a quasi-Newton
 // method that maintains a limited history of (s_k, y_k) step/gradient-
 // difference pairs and uses them to approximate the inverse Hessian.
 // The line search uses Armijo backtracking with the strong Wolfe condition
 // (c1 = 1e-4). The implementation supports an analytic gradient function
-// if provided; otherwise it falls back to central finite differences.
+// if provided; otherwise it uses central finite differences.
 export class LBFGSB {
   constructor(options = {}) {
-    this.max_iter = options.maxiter || 100;
+    this.maxIter = options.maxiter || 100;
     this.tolerance = options.tolerance || 1e-6;
-    this.memory_size = options.memory_size || 10;
+    this.memorySize = options.memorySize || 10;
     this.bounds = options.bounds || null; // [[lower, upper], ...]
   }
 
@@ -105,7 +94,7 @@ export class LBFGSB {
     const yList = []; // gradient difference history
     const rhoList = [];
 
-    for (let iter = 0; iter < this.max_iter; iter++) {
+    for (let iter = 0; iter < this.maxIter; iter++) {
       const grad = gradientFn ? gradientFn(x) : this._numericalGradient(objectiveFn, x);
       if (!gradientFn) nfev += 2 * x.length;
 
@@ -133,7 +122,6 @@ export class LBFGSB {
       nfev++;
       history.push({ x: newX.slice(), fun: newFx });
 
-      // Update history
       const s = newX.map((ni, i) => ni - x[i]);
       const newGrad = gradientFn ? gradientFn(newX) : this._numericalGradient(objectiveFn, newX);
       if (!gradientFn) nfev += 2 * x.length;
@@ -143,7 +131,7 @@ export class LBFGSB {
         sList.push(s);
         yList.push(y);
         rhoList.push(1 / sy);
-        if (sList.length > this.memory_size) {
+        if (sList.length > this.memorySize) {
           sList.shift();
           yList.shift();
           rhoList.shift();
@@ -194,9 +182,7 @@ export class LBFGSB {
   }
 }
 
-// ---------------------------------------------------------------------------
 // SLSQP (Sequential Least Squares Programming)
-// ---------------------------------------------------------------------------
 // Implements a BFGS-based SLSQP-style optimizer. At each iteration, we
 // build a quadratic model of the objective using the BFGS Hessian
 // approximation, compute the search direction -H · grad, and take a
@@ -208,7 +194,7 @@ export class LBFGSB {
 // differences.
 export class SLSQP {
   constructor(options = {}) {
-    this.max_iter = options.maxiter || 100;
+    this.maxIter = options.maxiter || 100;
     this.tolerance = options.tolerance || 1e-6;
   }
 
@@ -226,7 +212,7 @@ export class SLSQP {
       H[i][i] = 1;
     }
 
-    for (let iter = 0; iter < this.max_iter; iter++) {
+    for (let iter = 0; iter < this.maxIter; iter++) {
       const grad = gradientFn ? gradientFn(x) : this._numericalGradient(objectiveFn, x);
       if (!gradientFn) nfev += 2 * n;
 
@@ -287,15 +273,13 @@ export class SLSQP {
   }
 }
 
-// ---------------------------------------------------------------------------
 // NFT (Nakanishi-Fujii-Todo) optimizer.
-// ---------------------------------------------------------------------------
 // An iterative optimizer specifically designed for parameterized quantum
 // circuits. NFT exploits the fact that the objective function for a single
 // parameter (with all others fixed) is a sinusoid: f(θ) = A cos(θ) + B
 // sin(θ) + C. Two function evaluations determine (A, B, C) exactly, giving
 // the analytic minimum for that parameter. We sweep through all parameters
-// in turn, repeating for `max_iter` cycles.
+// in turn, repeating for `maxIter` cycles.
 //
 // Reference: Nakanishi, Fujii, Todo (2019), "Quantum circuit learning by
 // Nakanishi-Fujii-Todo algorithm", arXiv:1903.12166.
@@ -304,7 +288,7 @@ export class SLSQP {
 // with this sinusoidal structure (which includes all Pauli-evolution gates).
 export class NFT {
   constructor(options = {}) {
-    this.max_iter = options.maxiter || 100;
+    this.maxIter = options.maxiter || 100;
     this.tolerance = options.tolerance || 1e-6;
   }
 
@@ -315,7 +299,7 @@ export class NFT {
     let nfev = 1;
     const history = [{ x: x.slice(), fun: fx }];
 
-    for (let iter = 0; iter < this.max_iter; iter++) {
+    for (let iter = 0; iter < this.maxIter; iter++) {
       let improved = false;
       for (let i = 0; i < n; i++) {
         // Evaluate at θ_i and θ_i + π/2 to fit f(θ) = A cos(θ) + B sin(θ) + C.
@@ -374,9 +358,7 @@ export class NFT {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Nelder-Mead simplex optimizer.
-// ---------------------------------------------------------------------------
 // Standard Nelder-Mead algorithm with reflection (α=1), expansion (γ=2),
 // contraction (ρ=0.5), and shrink (σ=0.5) steps. The simplex is a set of
 // n+1 points; at each iteration we replace the worst point with a better
@@ -384,9 +366,9 @@ export class NFT {
 // function values falls below `tolerance`.
 export class NelderMead {
   constructor(options = {}) {
-    this.max_iter = options.maxiter || 200;
+    this.maxIter = options.maxiter || 200;
     this.tolerance = options.tolerance || 1e-6;
-    this.initial_step = options.initial_step || 1.0;
+    this.initialStep = options.initialStep || 1.0;
     this.alpha = 1.0;  // reflection
     this.gamma = 2.0;  // expansion
     this.rho = 0.5;    // contraction
@@ -398,22 +380,20 @@ export class NelderMead {
     let simplex = [x0.slice()];
     for (let i = 0; i < n; i++) {
       const point = x0.slice();
-      point[i] += this.initial_step;
+      point[i] += this.initialStep;
       simplex.push(point);
     }
     let fvals = simplex.map(p => objectiveFn(p));
     let nfev = simplex.length;
     const history = [{ x: x0.slice(), fun: Math.min(...fvals) }];
 
-    for (let iter = 0; iter < this.max_iter; iter++) {
-      // Sort
+    for (let iter = 0; iter < this.maxIter; iter++) {
       const order = fvals.map((v, i) => i).sort((a, b) => fvals[a] - fvals[b]);
       simplex = order.map(i => simplex[i]);
       fvals = order.map(i => fvals[i]);
 
       if (Math.abs(fvals[fvals.length - 1] - fvals[0]) < this.tolerance) break;
 
-      // Centroid of all but worst
       const centroid = new Array(n).fill(0);
       for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) centroid[j] += simplex[i][j];
       for (let j = 0; j < n; j++) centroid[j] /= n;

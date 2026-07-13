@@ -1,19 +1,8 @@
-/**
- * circuits.js - Pre-built circuit patterns.
- *
- * Pre-built circuit patterns: Bell state, GHZ state, QFT,
- * QuantumVolume, RealAmplitudes, EfficientSU2, PauliTwoDesign, TwoLocal.
- */
-
 import { QuantumCircuit } from "./../core/circuit.js";
-import { QuantumRegister, ClassicalRegister } from "./../core/bit.js";
-import { ControlledGate } from "./../core/gate.js";
-import { Parameter, ParameterVector } from "./../core/parameter.js";
+import { Parameter } from "./../core/parameter.js";
 import * as generalizedGates from "./generalized_gates.js";
 
-// Note: QuantumCircuit.prototype.cp/crx/cry/crz are already defined in
-// core/circuit.js. The earlier monkey-patches here were dead code (guarded
-// by `if (!QuantumCircuit.prototype.cp)`) and have been removed.
+// QuantumCircuit.prototype.cp/crx/cry/crz are defined in core/circuit.js.
 
 export function bellState() {
   const qc = new QuantumCircuit(2);
@@ -140,9 +129,7 @@ export function twoLocal(numQubits, rotationBlocks = ["ry"], entanglementBlocks 
   // TwoLocal builds an ansatz with `reps + 1` rotation layers separated by
   // `reps` entanglement layers. Each (layer, qubit, block) triple must get
   // its own uniquely-named Parameter so that VQE/QAOA optimizers can treat
-  // them as independent variables. The previous implementation reused
-  // `r_${q}` for every layer, which made all layers share parameters and
-  // silently broke training. The naming now matches qiskit's convention:
+  // them as independent variables. The naming matches qiskit's convention:
   //   `theta[layer][qubit]` for the per-block angle (with a block suffix
   //   when there are multiple rotation blocks).
   const qc = new QuantumCircuit(numQubits);

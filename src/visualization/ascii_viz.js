@@ -1,13 +1,7 @@
-/**
- * ascii_viz.js - ASCII renderers for histogram, Bloch sphere, and state city.
- */
-
-// ---------------------------------------------------------------------------
 // ASCII Histogram
-// ---------------------------------------------------------------------------
 export function render_histogram_ascii(counts, options = {}) {
   const maxBarWidth = options.maxBarWidth || 40;
-  const data = counts && counts.to_dict ? counts.to_dict() : counts;
+  const data = counts && counts.toDict ? counts.toDict() : counts;
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
   const maxCount = Math.max(...entries.map(e => e[1]));
   const total = entries.reduce((s, e) => s + e[1], 0);
@@ -34,9 +28,7 @@ export function render_histogram_ascii(counts, options = {}) {
   return lines.join("\n");
 }
 
-// ---------------------------------------------------------------------------
 // ASCII Bloch Sphere
-// ---------------------------------------------------------------------------
 export function render_bloch_ascii(vector, options = {}) {
   // vector: [x, y, z] Bloch vector
   const [x, y, z] = vector;
@@ -107,11 +99,9 @@ export function render_bloch_ascii(vector, options = {}) {
   return grid.map(row => row.join("")).join("\n");
 }
 
-// ---------------------------------------------------------------------------
 // ASCII State City (3D-ish bar chart for density matrix)
-// ---------------------------------------------------------------------------
 export function render_state_city_ascii(statevector, options = {}) {
-  const dim = statevector.num_qubits ? (1 << statevector.num_qubits) : statevector.size;
+  const dim = statevector.numQubits ? (1 << statevector.numQubits) : statevector.size;
   const data = statevector.data || statevector;
   const realPart = new Array(dim);
   const imagPart = new Array(dim);
@@ -180,10 +170,8 @@ function _renderMatrix3D(matrix, options = {}) {
   return lines.join("\n");
 }
 
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
 export function render_qsphere_ascii(statevector, options = {}) {
-  const n = statevector.num_qubits;
+  const n = statevector.numQubits;
   const dim = 1 << n;
   const probs = statevector.probabilities();
   const lines = [];

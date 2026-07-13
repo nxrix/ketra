@@ -1,12 +1,4 @@
-/**
- * density_matrix.js - DensityMatrix class for mixed quantum states.
- *
- * Supports construction from
- * Statevector, Operator, circuit, or label. Provides evolve, probabilities,
- * purity, trace, partial_trace, expectation_value, etc.
- */
-
-import { Complex, ComplexMatrix, ComplexVector, sampleDistribution } from "./../math/linalg.js";
+import { ComplexMatrix, ComplexVector, sampleDistribution } from "./../math/linalg.js";
 import { Statevector, _registerDensityMatrixClass } from "./statevector.js";
 import { Operator } from "./operator.js";
 
@@ -39,29 +31,29 @@ export class DensityMatrix {
         data.set(i, j, a.mul(b.conjugate()));
       }
     }
-    return new DensityMatrix(data, statevector.num_qubits);
+    return new DensityMatrix(data, statevector.numQubits);
   }
 
   static fromOperator(operator) {
     // Treat an Operator as the density matrix directly
-    return new DensityMatrix(operator.data, operator.num_qubits);
+    return new DensityMatrix(operator.data, operator.numQubits);
   }
 
   static fromCircuit(circuit, initState = null) {
     // Evolve |0>...|0> through the circuit, then convert to density matrix
-    const sv = initState ? initState : Statevector.zero(circuit.num_qubits);
+    const sv = initState ? initState : Statevector.zero(circuit.numQubits);
     let dm = DensityMatrix.fromStatevector(sv);
     for (const ci of circuit.data) {
       const op = ci.operation;
       if (op.name === "barrier" || op.name === "measure" || op.name === "reset") continue;
-      if (op.num_qubits === 0) continue;
-      if (typeof op.to_matrix !== "function") continue;
+      if (op.numQubits === 0) continue;
+      if (typeof op.toMatrix !== "function") continue;
       // rho' = U rho U^dagger
-      const gateMatrix = op.to_matrix();
+      const gateMatrix = op.toMatrix();
       const qubitIndices = ci.qubits.map(q => circuit._qubit_index.get(q));
-      const fullOp = _embedGate(gateMatrix, circuit.num_qubits, qubitIndices);
+      const fullOp = _embedGate(gateMatrix, circuit.numQubits, qubitIndices);
       const newRho = fullOp.mul(dm._data).mul(fullOp.dagger());
-      dm = new DensityMatrix(newRho, circuit.num_qubits);
+      dm = new DensityMatrix(newRho, circuit.numQubits);
     }
     return dm;
   }
@@ -81,7 +73,7 @@ export class DensityMatrix {
 
   get data() { return this._data; }
   get dim() { return this._data.rows; }
-  get num_qubits() { return this._numQubits; }
+  get numQubits() { return this._numQubits; }
 
   copy() {
     return new DensityMatrix(new ComplexMatrix(this._data.rows, this._data.cols, this._data.data.slice()), this._numQubits);
@@ -118,16 +110,16 @@ export class DensityMatrix {
   // Evolve under a unitary: rho' = U rho U^dagger
   evolve(other) {
     if (other && other._data && other._data instanceof ComplexMatrix) {
-      if (other.num_qubits !== this._numQubits) {
+      if (other.numQubits !== this._numQubits) {
         throw new Error("evolve: operator qubit count mismatch");
       }
       return new DensityMatrix(other._data.mul(this._data).mul(other._data.dagger()), this._numQubits);
     }
-    if (other && typeof other.to_matrix === "function") {
-      if (other.num_qubits !== this._numQubits) {
+    if (other && typeof other.toMatrix === "function") {
+      if (other.numQubits !== this._numQubits) {
         throw new Error("evolve: gate qubit count mismatch");
       }
-      const m = other.to_matrix();
+      const m = other.toMatrix();
       return new DensityMatrix(m.mul(this._data).mul(m.dagger()), this._numQubits);
     }
     throw new TypeError("evolve: unsupported operand type");
@@ -155,7 +147,7 @@ export class DensityMatrix {
   }
 
   // Partial trace over a qubit
-  partial_trace(qubits) {
+  partialTrace(qubits) {
     const qList = Array.isArray(qubits) ? qubits : [qubits];
     let result = this;
     // Sort descending so we trace out higher-index qubits first (keeps indices stable)
@@ -196,7 +188,7 @@ export class DensityMatrix {
   }
 
   // Expectation value <O> = Tr(O rho)
-  expectation_value(operator) {
+  expectationValue(operator) {
     const m = (operator instanceof ComplexMatrix) ? operator : operator._data;
     const prod = m.mul(this._data);
     const tr = prod.trace();
@@ -204,7 +196,7 @@ export class DensityMatrix {
   }
 
   // Convert to a Statevector if pure (returns null if not pure)
-  to_statevector() {
+  toStatevector() {
     if (!this.is_pure()) return null;
     // Find the eigenvalue closest to 1 and use the corresponding eigenvector
     const { eigenvalues, eigenvectors } = this._data.eigh();
@@ -228,15 +220,15 @@ export class DensityMatrix {
     return other instanceof DensityMatrix && this._data.equals(other._data, tol);
   }
 
-  to_matrix() { return this._data; }
+  toMatrix() { return this._data; }
 
-  to_dict() {
+  toDict() {
     const rows = this._data.toRows();
     return rows.map(r => r.map(c => ({ re: c.re, im: c.im })));
   }
 
   toString() {
-    return `DensityMatrix(num_qubits=${this._numQubits})\n${this._data.toString()}`;
+    return `DensityMatrix(numQubits=${this._numQubits})\n${this._data.toString()}`;
   }
 }
 
@@ -281,5 +273,5 @@ function _marginalProbabilitiesDM(diag, numQubits, indices) {
   return out;
 }
 
-// Register the DensityMatrix class so Statevector.partial_trace() can find it.
+// Register the DensityMatrix class so Statevector.partialTrace() can find it.
 _registerDensityMatrixClass(DensityMatrix);

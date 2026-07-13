@@ -48,20 +48,20 @@ export class Operator {
   }
 
   static fromCircuit(circuit) {
-    const op = Operator.identity(circuit.num_qubits);
+    const op = Operator.identity(circuit.numQubits);
     for (const ci of circuit.data) {
       if (ci.operation.name === "barrier" || ci.operation.name === "measure" || ci.operation.name === "reset") continue;
-      if (ci.operation.num_qubits === 0) continue;
+      if (ci.operation.numQubits === 0) continue;
       const gateOp = Operator.fromGate(ci.operation);
-      const fullOp = gateOp.embedIntoCircuit(circuit.num_qubits, ci.qubits.map(q => circuit._qubit_index.get(q)));
+      const fullOp = gateOp.embedIntoCircuit(circuit.numQubits, ci.qubits.map(q => circuit._qubit_index.get(q)));
       op._data = fullOp._data.mul(op._data);
     }
     return op;
   }
 
   static fromGate(gate) {
-    if (typeof gate.to_matrix === "function") {
-      return new Operator(gate.to_matrix());
+    if (typeof gate.toMatrix === "function") {
+      return new Operator(gate.toMatrix());
     }
     throw new TypeError("Cannot construct Operator from gate without matrix");
   }
@@ -81,7 +81,7 @@ export class Operator {
 
   get data() { return this._data; }
   get dim() { return this._data.rows; }
-  get num_qubits() { return this._numQubits; }
+  get numQubits() { return this._numQubits; }
 
   compose(other) {
     if (this._numQubits !== other._numQubits) {
@@ -98,8 +98,8 @@ export class Operator {
   trace() { return this._data.trace(); }
   det() { return this._data.det(); }
 
-  is_unitary(tol) { return this._data.isUnitary(tol); }
-  is_hermitian(tol) { return this._data.isHermitian(tol); }
+  isUnitary(tol) { return this._data.isUnitary(tol); }
+  isHermitian(tol) { return this._data.isHermitian(tol); }
 
   pow(n) {
     if (n === 0) return Operator.identity(this._numQubits);
@@ -114,7 +114,7 @@ export class Operator {
     return other instanceof Operator && this._data.equals(other._data, tol);
   }
 
-  equals_up_to_phase(other, tol) {
+  equalsUpToPhase(other, tol) {
     const eps = (typeof tol === "number") ? tol : 1e-9;
     if (!(other instanceof Operator) || this._numQubits !== other._numQubits) return false;
     let phase = null;
@@ -171,11 +171,11 @@ export class Operator {
   }
 
   // Apply to a statevector
-  apply_to_vector(vector) { return this._data.matvec(vector); }
+  applyToVector(vector) { return this._data.matvec(vector); }
 
   // Partial trace: trace out the qubits in `qubitsToTraceOut`, returning an
   // Operator on the remaining qubits.
-  partial_trace(qubitsToTraceOut) {
+  partialTrace(qubitsToTraceOut) {
     const traceOut = (Array.isArray(qubitsToTraceOut) ? qubitsToTraceOut : [qubitsToTraceOut]).slice();
     if (traceOut.length === 0) return this;
     // Trace out one qubit at a time, using the existing ComplexMatrix.partialTrace.
@@ -222,11 +222,11 @@ export class Operator {
   }
 
   // Convert to a measurement channel: project the input state onto the operator
-  to_matrix() { return this._data; }
+  toMatrix() { return this._data; }
 
   // Eigenvalues (for Hermitian operators)
   eigvals() {
-    if (!this.is_hermitian()) {
+    if (!this.isHermitian()) {
       throw new Error("eigvals only supports Hermitian operators (use svd for general)");
     }
     return this._data.eigh().eigenvalues;
@@ -245,9 +245,9 @@ export class Operator {
   }
 
   toString() {
-    return `Operator(num_qubits=${this._numQubits})\n${this._data.toString()}`;
+    return `Operator(numQubits=${this._numQubits})\n${this._data.toString()}`;
   }
 }
 
-// Register the Operator class so QuantumCircuit.to_gate()/to_instruction() can find it.
+// Register the Operator class so QuantumCircuit.toGate()/toInstruction() can find it.
 _registerOperatorClass(Operator);

@@ -1,20 +1,6 @@
-/**
- * passes.js - Transpiler passes for layout, routing, and optimization.
- *
- * Layout passes: TrivialLayout, DenseLayout, SabreLayout, ApplyLayout.
- * Routing passes: BasicSwap, LookaheadSwap, StochasticSwap, SabreSwap.
- *   Note: the real Sabre implementation lives in ./sabre.js. The SabreSwap
- *   exported here delegates to it so callers importing from this module get
- *   the real algorithm, not a stub.
- * Optimization passes: CommutativeCancellation, CXCancellation, Optimize1qGates,
- *   OptimizeSwapBeforeMeasure, RemoveBarriers, RemoveResetInZeroState,
- *   DAGFixedPointPass.
- */
-
-import { Layout, CouplingMap, AnalysisPass, TransformationPass } from "./layout.js";
+import { Layout, AnalysisPass, TransformationPass } from "./layout.js";
 import { DAGCircuit, DAGOpNode } from "./../dagcircuit/dagcircuit.js";
 import { QuantumRegister, ClassicalRegister } from "./../core/bit.js";
-import { Gate, ControlledGate, Instruction } from "./../core/gate.js";
 import * as standardGates from "./../library/standard_gates.js";
 import * as generalizedGates from "./../library/generalized_gates.js";
 import {
@@ -22,13 +8,11 @@ import {
   SabreLayout as RealSabreLayout,
 } from "./sabre.js";
 
-// ---------------------------------------------------------------------------
 // Layout passes
-// ---------------------------------------------------------------------------
 export class TrivialLayout extends TransformationPass {
   constructor(couplingMap = null) {
     super();
-    this.coupling_map = couplingMap;
+    this.couplingMap = couplingMap;
   }
 
   run(dag) {
@@ -42,11 +26,11 @@ export class TrivialLayout extends TransformationPass {
 export class DenseLayout extends TransformationPass {
   constructor(couplingMap = null) {
     super();
-    this.coupling_map = couplingMap;
+    this.couplingMap = couplingMap;
   }
 
   run(dag) {
-    if (!this.coupling_map) {
+    if (!this.couplingMap) {
       return new TrivialLayout().run(dag);
     }
     // Dense layout: pick the `n` most-connected physical qubits from the
@@ -54,8 +38,8 @@ export class DenseLayout extends TransformationPass {
     // a greedy heuristic — qiskit's version also considers error rates.
     const n = dag.qubits.length;
     const degree = new Map();
-    for (let p = 0; p < this.coupling_map.size; p++) {
-      degree.set(p, this.coupling_map.neighbors(p).length);
+    for (let p = 0; p < this.couplingMap.size; p++) {
+      degree.set(p, this.couplingMap.neighbors(p).length);
     }
     const sorted = Array.from(degree.entries())
       .sort((a, b) => b[1] - a[1])
@@ -73,16 +57,16 @@ export class DenseLayout extends TransformationPass {
 export class SabreLayout extends TransformationPass {
   constructor(couplingMap = null, seed = null, maxIterations = 3) {
     super();
-    this.coupling_map = couplingMap;
+    this.couplingMap = couplingMap;
     this.seed = seed;
-    this.max_iterations = maxIterations;
+    this.maxIterations = maxIterations;
   }
 
   run(dag) {
-    if (!this.coupling_map) {
+    if (!this.couplingMap) {
       return new TrivialLayout().run(dag);
     }
-    const real = new RealSabreLayout(this.coupling_map, this.seed, this.max_iterations);
+    const real = new RealSabreLayout(this.couplingMap, this.seed, this.maxIterations);
     dag._layout = real.run(dag);
     return dag;
   }
@@ -101,23 +85,21 @@ export class ApplyLayout extends TransformationPass {
     const newQubitsNeeded = maxPhys - dag.qubits.length;
     if (newQubitsNeeded > 0) {
       const ancReg = new QuantumRegister(newQubitsNeeded, "ancilla");
-      dag.add_qreg(ancReg);
+      dag.addQreg(ancReg);
     }
     return dag;
   }
 }
 
-// ---------------------------------------------------------------------------
 // Routing passes
-// ---------------------------------------------------------------------------
 export class BasicSwap extends TransformationPass {
   constructor(couplingMap = null) {
     super();
-    this.coupling_map = couplingMap;
+    this.couplingMap = couplingMap;
   }
 
   run(dag) {
-    if (!this.coupling_map) return dag;
+    if (!this.couplingMap) return dag;
     // Greedy SWAP insertion: for each 2-qubit gate whose qubits are not
     // adjacent in the coupling map, insert SWAP gates along the shortest
     // path so the gate becomes adjacent, then insert the reverse SWAPs
@@ -129,30 +111,30 @@ export class BasicSwap extends TransformationPass {
     // avoids relying on internal DAG mutation methods.
     const newDag = new DAGCircuit();
     for (const [name, reg] of dag.qregs.entries()) {
-      newDag.add_qreg(new QuantumRegister(reg.bits.length, name));
+      newDag.addQreg(new QuantumRegister(reg.bits.length, name));
     }
     for (const [name, reg] of dag.cregs.entries()) {
-      newDag.add_creg(new ClassicalRegister(reg.bits.length, name));
+      newDag.addCreg(new ClassicalRegister(reg.bits.length, name));
     }
     newDag.name = dag.name;
-    newDag.global_phase = dag.global_phase;
+    newDag.globalPhase = dag.globalPhase;
     newDag.metadata = dag.metadata;
 
-    for (const node of dag.topological_op_nodes()) {
+    for (const node of dag.topologicalOpNodes()) {
       const op = node.op;
       const qargs = node.qargs;
       const cargs = node.cargs;
-      if (op.num_qubits !== 2) {
-        newDag.apply_operation(op.copy(), qargs.map(q => _mapQubit(q, dag, newDag)), cargs.map(c => _mapClbit(c, dag, newDag)));
+      if (op.numQubits !== 2) {
+        newDag.applyOperation(op.copy(), qargs.map(q => _mapQubit(q, dag, newDag)), cargs.map(c => _mapClbit(c, dag, newDag)));
         continue;
       }
       const q0 = dag.qubits.indexOf(qargs[0]);
       const q1 = dag.qubits.indexOf(qargs[1]);
-      if (this.coupling_map.hasEdge(q0, q1)) {
-        newDag.apply_operation(op.copy(), qargs.map(q => _mapQubit(q, dag, newDag)), cargs.map(c => _mapClbit(c, dag, newDag)));
+      if (this.couplingMap.hasEdge(q0, q1)) {
+        newDag.applyOperation(op.copy(), qargs.map(q => _mapQubit(q, dag, newDag)), cargs.map(c => _mapClbit(c, dag, newDag)));
         continue;
       }
-      const path = this.coupling_map.shortestPath(q0, q1);
+      const path = this.couplingMap.shortestPath(q0, q1);
       if (!path || path.length < 2) {
         throw new Error(`BasicSwap: no path between ${q0} and ${q1} in coupling map`);
       }
@@ -175,7 +157,7 @@ export class BasicSwap extends TransformationPass {
         const swapOp = standardGates.SwapGate.copy();
         const qa = newDag.qubits[a];
         const qb = newDag.qubits[b];
-        newDag.apply_operation(swapOp, [qa, qb], []);
+        newDag.applyOperation(swapOp, [qa, qb], []);
       }
       // Apply the original gate on the qubits at the end of the path
       // (which are now adjacent). The operand ordering matches the
@@ -186,14 +168,14 @@ export class BasicSwap extends TransformationPass {
         newDag.qubits[path[lastIdx]],
         newDag.qubits[path[lastIdx - 1]],
       ];
-      newDag.apply_operation(op.copy(), newQargs, cargs.map(c => _mapClbit(c, dag, newDag)));
+      newDag.applyOperation(op.copy(), newQargs, cargs.map(c => _mapClbit(c, dag, newDag)));
       // Insert reverse SWAPs to restore the layout.
       for (let i = forwardSwaps.length - 1; i >= 0; i--) {
         const [a, b] = forwardSwaps[i];
         const swapOp = standardGates.SwapGate.copy();
         const qa = newDag.qubits[a];
         const qb = newDag.qubits[b];
-        newDag.apply_operation(swapOp, [qa, qb], []);
+        newDag.applyOperation(swapOp, [qa, qb], []);
       }
     }
     return newDag;
@@ -214,15 +196,15 @@ function _mapClbit(c, oldDag, newDag) {
 export class LookaheadSwap extends TransformationPass {
   constructor(couplingMap = null, searchDepth = 5) {
     super();
-    this.coupling_map = couplingMap;
-    this.search_depth = searchDepth;
+    this.couplingMap = couplingMap;
+    this.searchDepth = searchDepth;
   }
 
   run(dag) {
-    if (!this.coupling_map) return dag;
+    if (!this.couplingMap) return dag;
     // LookaheadSwap uses the real Sabre router with the "lookahead" heuristic,
     // which considers the next layer of gates when choosing SWAPs.
-    const sabre = new RealSabreSwap(this.coupling_map, "lookahead", null);
+    const sabre = new RealSabreSwap(this.couplingMap, "lookahead", null);
     return sabre.run(dag);
   }
 }
@@ -230,21 +212,28 @@ export class LookaheadSwap extends TransformationPass {
 export class StochasticSwap extends TransformationPass {
   constructor(couplingMap = null, seed = null, trials = 20) {
     super();
-    this.coupling_map = couplingMap;
+    this.couplingMap = couplingMap;
     this.seed = seed;
     this.trials = trials;
   }
 
   run(dag) {
-    if (!this.coupling_map) return dag;
+    if (!this.couplingMap) return dag;
     // StochasticSwap runs Sabre multiple times with different seeds and picks
     // the routing with the fewest SWAPs.
     let best = null;
     let bestSwaps = Infinity;
     for (let t = 0; t < this.trials; t++) {
-      const sabre = new RealSabreSwap(this.coupling_map, "lookahead", this.seed != null ? this.seed + t : null);
+      const sabre = new RealSabreSwap(this.couplingMap, "lookahead", this.seed != null ? this.seed + t : null);
       const routed = sabre.run(dag);
-      const numSwaps = routed.data.filter(ci => ci.operation.name === "swap").length;
+      let numSwaps;
+      if (routed.topologicalOpNodes) {
+        numSwaps = routed.topologicalOpNodes().filter(n => n.op.name === "swap").length;
+      } else if (routed.data) {
+        numSwaps = routed.data.filter(ci => ci.operation.name === "swap").length;
+      } else {
+        numSwaps = 0;
+      }
       if (numSwaps < bestSwaps) {
         bestSwaps = numSwaps;
         best = routed;
@@ -257,28 +246,25 @@ export class StochasticSwap extends TransformationPass {
 export class SabreSwap extends TransformationPass {
   constructor(couplingMap = null, heuristic = "lookahead", seed = null) {
     super();
-    this.coupling_map = couplingMap;
+    this.couplingMap = couplingMap;
     this.heuristic = heuristic;
     this.seed = seed;
   }
 
   run(dag) {
-    if (!this.coupling_map) return dag;
-    // Delegate to the real Sabre router from sabre.js.
-    const sabre = new RealSabreSwap(this.coupling_map, this.heuristic, this.seed);
+    if (!this.couplingMap) return dag;
+    const sabre = new RealSabreSwap(this.couplingMap, this.heuristic, this.seed);
     return sabre.run(dag);
   }
 }
 
-// ---------------------------------------------------------------------------
 // Optimization passes
-// ---------------------------------------------------------------------------
 export class CXCancellation extends TransformationPass {
   constructor() { super(); }
 
   run(dag) {
     // Cancel adjacent identical CNOTs: CNOT(a,b) CNOT(a,b) -> identity.
-    const opNodes = dag.topological_op_nodes();
+    const opNodes = dag.topologicalOpNodes();
     const toRemove = new Set();
     for (const node of opNodes) {
       if (toRemove.has(node)) continue;
@@ -295,7 +281,7 @@ export class CXCancellation extends TransformationPass {
       }
     }
     for (const node of toRemove) {
-      try { dag.remove_op_node(node); } catch (e) { /* already removed */ }
+      try { dag.removeOpNode(node); } catch (e) { /* already removed */ }
     }
     return dag;
   }
@@ -304,7 +290,7 @@ export class CXCancellation extends TransformationPass {
 export class CommutativeCancellation extends TransformationPass {
   constructor(basisGates = ["cx", "rz", "sx", "x"]) {
     super();
-    this.basis_gates = basisGates;
+    this.basisGates = basisGates;
   }
 
   run(dag) {
@@ -316,7 +302,7 @@ export class CommutativeCancellation extends TransformationPass {
     // would also handle cross-qubit commuting pairs (e.g. CNOTs on
     // disjoint qubit sets), which requires a more expensive commutativity
     // analysis.
-    const opNodes = dag.topological_op_nodes();
+    const opNodes = dag.topologicalOpNodes();
     const toRemove = new Set();
     const stack = [];
     for (const node of opNodes) {
@@ -340,7 +326,7 @@ export class CommutativeCancellation extends TransformationPass {
       stack.push(node);
     }
     for (const node of toRemove) {
-      try { dag.remove_op_node(node); } catch (e) { /* already removed */ }
+      try { dag.removeOpNode(node); } catch (e) { /* already removed */ }
     }
     return dag;
   }
@@ -349,15 +335,15 @@ export class CommutativeCancellation extends TransformationPass {
 export class Optimize1qGates extends TransformationPass {
   constructor(basisGates = ["u1", "u2", "u3", "cx"]) {
     super();
-    this.basis_gates = basisGates;
+    this.basisGates = basisGates;
   }
 
   run(dag) {
     // Merge consecutive single-qubit gates on the same qubit into a single
     // U3 gate via Euler Z-Y-Z decomposition.
-    const opNodes = dag.topological_op_nodes();
+    const opNodes = dag.topologicalOpNodes();
     for (const node of opNodes) {
-      if (node.op.num_qubits !== 1) continue;
+      if (node.op.numQubits !== 1) continue;
       const qarg = node.qargs[0];
       let current = node;
       const chain = [node];
@@ -365,7 +351,7 @@ export class Optimize1qGates extends TransformationPass {
         const succs = dag.successors(current).filter(s => s.is_op_node());
         if (succs.length !== 1) break;
         const next = succs[0];
-        if (next.op.num_qubits !== 1 || next.qargs[0] !== qarg) break;
+        if (next.op.numQubits !== 1 || next.qargs[0] !== qarg) break;
         chain.push(next);
         current = next;
       }
@@ -375,7 +361,7 @@ export class Optimize1qGates extends TransformationPass {
         let ok = true;
         for (const n of chain) {
           try {
-            const mat = n.op.to_matrix();
+            const mat = n.op.toMatrix();
             combined = combined ? mat.mul(combined) : mat;
           } catch (e) { ok = false; break; }
         }
@@ -384,10 +370,9 @@ export class Optimize1qGates extends TransformationPass {
         const euler = _decomposeZYZ(combined);
         const newGate = generalizedGates.makeU3Gate(euler.theta, euler.phi, euler.lambda);
         const newNode = new DAGOpNode(newGate, [qarg], []);
-        dag.substitute_node(chain[0], newNode);
-        // Remove the rest of the chain.
+        dag.substituteNode(chain[0], newNode);
         for (let i = 1; i < chain.length; i++) {
-          try { dag.remove_op_node(chain[i]); } catch (e) {}
+          try { dag.removeOpNode(chain[i]); } catch (e) {}
         }
       }
     }
@@ -442,7 +427,7 @@ export class OptimizeSwapBeforeMeasure extends TransformationPass {
     // Remove SWAPs that immediately precede measurements by relabeling which
     // qubit is measured. We find SWAP nodes whose only successors are
     // measurements, remove the SWAP, and swap the measurement target qubits.
-    const opNodes = dag.topological_op_nodes();
+    const opNodes = dag.topologicalOpNodes();
     for (const node of opNodes) {
       if (node.op.name !== "swap") continue;
       const succs = dag.successors(node).filter(s => s.is_op_node());
@@ -452,7 +437,7 @@ export class OptimizeSwapBeforeMeasure extends TransformationPass {
         const tmp = m0.cargs[0];
         m0.cargs[0] = m1.cargs[0];
         m1.cargs[0] = tmp;
-        try { dag.remove_op_node(node); } catch (e) {}
+        try { dag.removeOpNode(node); } catch (e) {}
       }
     }
     return dag;
@@ -466,7 +451,7 @@ export class RemoveBarriers extends TransformationPass {
     const opNodes = dag.op_nodes();
     for (const node of opNodes) {
       if (node.op.name === "barrier") {
-        dag.remove_op_node(node);
+        dag.removeOpNode(node);
       }
     }
     return dag;
@@ -479,13 +464,13 @@ export class RemoveResetInZeroState extends TransformationPass {
   run(dag) {
     // Remove reset gates on qubits that are still in their initial |0> state
     // (i.e. no prior gate has touched them).
-    const opNodes = dag.topological_op_nodes();
+    const opNodes = dag.topologicalOpNodes();
     const zeroQubits = new Set();
     for (const q of dag.qubits) zeroQubits.add(q);
     for (const node of opNodes) {
       if (node.op.name === "reset") {
         if (zeroQubits.has(node.qargs[0])) {
-          dag.remove_op_node(node);
+          dag.removeOpNode(node);
         }
       } else {
         for (const q of node.qargs) zeroQubits.delete(q);

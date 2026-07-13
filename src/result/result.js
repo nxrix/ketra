@@ -42,7 +42,7 @@ export class Counts {
     return out;
   }
 
-  to_dict() { return Object.assign({}, this._data); }
+  toDict() { return Object.assign({}, this._data); }
 
   [Symbol.iterator]() {
     return Object.entries(this._data)[Symbol.iterator]();
@@ -76,17 +76,17 @@ export class Counts {
 
 export class Result {
   constructor(kwargs) {
-    this.backend_name = kwargs.backend_name || "unknown";
-    this.backend_version = kwargs.backend_version || "0.0.0";
-    this.qobj_id = kwargs.qobj_id || "qobj";
-    this.job_id = kwargs.job_id || `job_${Date.now()}`;
+    this.backendName = kwargs.backendName || "unknown";
+    this.backendVersion = kwargs.backendVersion || "0.0.0";
+    this.qobjId = kwargs.qobjId || "qobj";
+    this.jobId = kwargs.jobId || `job_${Date.now()}`;
     this.success = kwargs.success !== undefined ? kwargs.success : true;
     this.results = kwargs.results || [];
     this.date = kwargs.date || new Date().toISOString();
     this.status = kwargs.status || "COMPLETED";
   }
 
-  get_counts(experiment_id = 0) {
+  getCounts(experiment_id = 0) {
     const exp = this.results[experiment_id];
     if (!exp) throw new Error(`No experiment at index ${experiment_id}`);
     return exp.data.counts;
@@ -108,12 +108,12 @@ export class Result {
     return this.results[experiment_id];
   }
 
-  to_dict() {
+  toDict() {
     return {
-      backend_name: this.backend_name,
-      backend_version: this.backend_version,
-      qobj_id: this.qobj_id,
-      job_id: this.job_id,
+      backendName: this.backendName,
+      backendVersion: this.backendVersion,
+      qobjId: this.qobjId,
+      jobId: this.jobId,
       success: this.success,
       results: this.results,
       date: this.date,

@@ -1,10 +1,3 @@
-/**
- * bit.js - Bit / Register primitives.
- *
- * Bit / Register primitives: Bit, Qubit, Clbit, Register, QuantumRegister,
- * ClassicalRegister. Used to construct QuantumCircuit instances.
- */
-
 let _bitCounter = 0;
 
 export class Bit {

@@ -1,68 +1,31 @@
-/**
- * boolean_logic.js - Boolean logic circuit library matching qiskit.circuit.library.
- *
- * Implements:
- *   - AND gate (multi-controlled X with output)
- *   - OR gate
- *   - XOR gate
- *   - NAND gate
- *   - NOR gate
- *   - XNOR gate
- *   - MCX variants (V-chain, recursive, no-ancilla)
- *
- * These build on the basic CCX (Toffoli) gate to implement arbitrary
- * Boolean functions of n input qubits into a single output qubit.
- */
-
-import { QuantumCircuit } from "./../core/circuit.js";
 import { Gate } from "./../core/gate.js";
 import { _registerExtraGateClass } from "./../core/circuit.js";
+import { Complex, ComplexMatrix } from "./../math/linalg.js";
 
-// ---------------------------------------------------------------------------
-// AND gate: output = AND(controls).
-// Implements: output ^= (AND of all controls), so output should start in |0>.
-// Uses an ancilla-free decomposition based on multi-controlled X.
+const ZERO = new Complex(0, 0);
+const ONE = new Complex(1, 0);
+
+// AND gate
 export class ANDGate extends Gate {
   constructor(numInputQubits) {
     super("and", numInputQubits + 1, []);
     this._numInput = numInputQubits;
     this._matrixBuilder = () => {
-      // The AND gate is a multi-controlled X: it flips the output iff
-      // all inputs are |1>. The matrix is identity except for the |1...1>↔|1...0>
-      // swap (output qubit is the last one).
       const dim = 1 << (numInputQubits + 1);
-      const m = ComplexMatrix_identity(dim);
-      // Swap |1...10> and |1...11>.
-      const allOnesInputs = (1 << numInputQubits) - 1; // inputs all 1, output 0
-      const allOnesWithOutput = allOnesInputs | (1 << numInputQubits); // output 1
-      const tmp = m.get(allOnesInputs, allOnesInputs);
-      m.set(allOnesInputs, allOnesInputs, m.get(allOnesWithOutput, allOnesWithOutput));
-      m.set(allOnesWithOutput, allOnesWithOutput, tmp);
-      // Wait, we need to actually swap, not just copy. Let me redo this.
-      // The matrix should map |1...10> -> |1...11> and |1...11> -> |1...10>.
-      // That's a swap of those two basis states.
-      // Build the matrix fresh.
-      const m2 = ComplexMatrix_identity(dim);
-      m2.set(allOnesInputs, allOnesInputs, ZERO);
-      m2.set(allOnesWithOutput, allOnesWithOutput, ZERO);
-      m2.set(allOnesInputs, allOnesWithOutput, ONE);
-      m2.set(allOnesWithOutput, allOnesInputs, ONE);
-      return m2;
+      const m = ComplexMatrix.identity(dim);
+      const allOnesInputs = (1 << numInputQubits) - 1;
+      const allOnesWithOutput = allOnesInputs | (1 << numInputQubits);
+      m.set(allOnesInputs, allOnesInputs, ZERO);
+      m.set(allOnesWithOutput, allOnesWithOutput, ZERO);
+      m.set(allOnesInputs, allOnesWithOutput, ONE);
+      m.set(allOnesWithOutput, allOnesInputs, ONE);
+      return m;
     };
   }
   copy() { return new ANDGate(this._numInput); }
 }
 
-// We need Complex/ComplexMatrix imports for the matrices above.
-import { Complex, ComplexMatrix } from "./../math/linalg.js";
-const ZERO = new Complex(0, 0);
-const ONE = new Complex(1, 0);
-function ComplexMatrix_identity(n) { return ComplexMatrix.identity(n); }
-
-// ---------------------------------------------------------------------------
-// OR gate: output = OR(controls).
-// Implements: output ^= (OR of all controls), so output should start in |0>.
-// OR(x) = NOT(AND(NOT(x))) = 1 - AND(0, 0, ..., 0).
+// OR gate
 export class ORGate extends Gate {
   constructor(numInputQubits) {
     super("or", numInputQubits + 1, []);
@@ -88,7 +51,6 @@ export class ORGate extends Gate {
   copy() { return new ORGate(this._numInput); }
 }
 
-// ---------------------------------------------------------------------------
 // XOR gate: output = XOR(controls).
 // Implements: output ^= (XOR of all controls), so output should start in |0>.
 // XOR is just a sequence of CNOTs.
@@ -122,7 +84,6 @@ function _popcount(x) {
   return count;
 }
 
-// ---------------------------------------------------------------------------
 // NAND, NOR, XNOR gates: AND/OR/XOR followed by NOT on the output.
 export class NANDGate extends Gate {
   constructor(numInputQubits) {
@@ -191,7 +152,6 @@ export class XNORGate extends Gate {
   copy() { return new XNORGate(this._numInput); }
 }
 
-// Register the Boolean logic gates.
 _registerExtraGateClass("ANDGate", ANDGate);
 _registerExtraGateClass("ORGate", ORGate);
 _registerExtraGateClass("XORGate", XORGate);
@@ -199,13 +159,11 @@ _registerExtraGateClass("NANDGate", NANDGate);
 _registerExtraGateClass("NORGate", NORGate);
 _registerExtraGateClass("XNORGate", XNORGate);
 
-// ---------------------------------------------------------------------------
 // MCX variants: different decompositions of the multi-controlled X gate.
 //   - MCXVChain: uses n-2 ancilla qubits in a V-chain of Toffolis
 //   - MCXRecursive: uses 1 ancilla and recursive decomposition
 //   - MCXNoAncilla: uses no ancillas, but O(n^2) Toffolis
 //   - MCXGrayCode: uses Gray code decomposition (no ancillas)
-// ---------------------------------------------------------------------------
 
 // Build an MCX (multi-controlled X) using a V-chain of Toffoli gates.
 // `controls` is the list of control qubit indices, `target` is the target
@@ -236,9 +194,7 @@ export function mcxVChain(circuit, controls, target, ancillae) {
     chain.push([last, controls[i], anc]);
     last = anc;
   }
-  // Final Toffoli onto the target.
   circuit.ccx(last, controls[n - 1], target);
-  // Uncompute the chain (reverse).
   for (let i = chain.length - 1; i >= 0; i--) {
     const [a, b, c] = chain[i];
     circuit.ccx(a, b, c);
@@ -254,37 +210,19 @@ export function mcxRecursive(circuit, controls, target, ancilla) {
     else if (n === 2) circuit.ccx(controls[0], controls[1], target);
     return;
   }
-  if (ancilla === undefined) {
-    throw new Error("MCXRecursive requires 1 ancilla for n > 2");
+  if (ancilla === undefined || ancilla === null) {
+    // No ancilla available: use circuit.mcx directly.
+    circuit.mcx(controls, target);
+    return;
   }
   // Split: first half controls -> ancilla, second half + ancilla -> target.
   const half = Math.floor(n / 2);
   const firstHalf = controls.slice(0, half);
   const secondHalf = controls.slice(half);
-  // Compute first half into ancilla (recursively).
-  if (firstHalf.length === 1) {
-    circuit.cx(firstHalf[0], ancilla);
-  } else {
-    mcxRecursive(circuit, firstHalf, ancilla, null);
-  }
-  // Now apply (secondHalf + ancilla)-controlled X on target.
+  mcxRecursive(circuit, firstHalf, ancilla, null);
   const combinedControls = secondHalf.concat([ancilla]);
-  if (combinedControls.length === 1) {
-    circuit.cx(combinedControls[0], target);
-  } else if (combinedControls.length === 2) {
-    circuit.ccx(combinedControls[0], combinedControls[1], target);
-  } else {
-    // Need another ancilla for the recursive call. For simplicity, we
-    // fall back to the V-chain if no second ancilla is available.
-    // In practice, the recursive decomposition uses log(n) ancillae.
-    mcxVChain(circuit, combinedControls, target, []);
-  }
-  // Uncompute the first half.
-  if (firstHalf.length === 1) {
-    circuit.cx(firstHalf[0], ancilla);
-  } else {
-    mcxRecursive(circuit, firstHalf, ancilla, null);
-  }
+  mcxRecursive(circuit, combinedControls, target, null);
+  mcxRecursive(circuit, firstHalf, ancilla, null);
 }
 
 // No-ancilla MCX using O(n^2) Toffolis. Based on the Barenco et al. (1995)
@@ -296,12 +234,8 @@ export function mcxNoAncilla(circuit, controls, target) {
     else if (n === 2) circuit.ccx(controls[0], controls[1], target);
     return;
   }
-  // Barenco decomposition: for n controls, use n-2 Toffolis with relative
-  // phase Toffolis (RTOF) to avoid ancillas. The exact construction is
-  // involved; we use a simpler (but less efficient) recursive decomposition
-  // that uses the target qubit as a temporary.
-  // For correctness, we fall back to the standard multi-controlled X
-  // (which the circuit module already supports via ControlledGate).
-  // This is a placeholder that delegates to circuit.mcx.
+  // Barenco decomposition: for n controls, the exact construction uses
+  // relative-phase Toffolis to avoid ancillas. Here we use circuit.mcx
+  // (which the circuit module supports via ControlledGate).
   circuit.mcx(controls, target);
 }

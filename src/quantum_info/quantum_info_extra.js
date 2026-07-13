@@ -1,30 +1,15 @@
-/**
- * quantum_info_extra.js - Additional quantum_info functions and methods
- * matching qiskit.quantum_info.
- *
- * Provides:
- *   - Random generators: random_unitary, random_statevector, random_pauli,
- *     random_clifford, random_density_matrix
- *   - Entanglement measures: purity, concurrence, entanglement_of_formation,
- *     mutual_information, gate_fidelity, unitarity
- *   - Helper methods that augment Statevector, DensityMatrix, Operator,
- *     Clifford, and SparsePauliOp via prototype patching.
- */
-
-import { Complex, ComplexMatrix, ComplexVector, PAULI, randomUniform } from "./../math/linalg.js";
+import { Complex, ComplexMatrix, ComplexVector, PAULI } from "./../math/linalg.js";
 import { Statevector } from "./statevector.js";
 import { Operator } from "./operator.js";
-import { Pauli, SparsePauliOp } from "./pauli.js";
+import { Pauli } from "./pauli.js";
 import { Clifford } from "./clifford.js";
 import { DensityMatrix } from "./density_matrix.js";
 
-// ---------------------------------------------------------------------------
 // Random generators.
-// ---------------------------------------------------------------------------
 
 // Haar-random unitary of dimension 2^n. Uses the QR decomposition of a
 // random complex Gaussian matrix (the standard algorithm).
-export function random_unitary(numQubits, seed = null) {
+export function randomUnitary(numQubits, seed = null) {
   const dim = 1 << numQubits;
   const rng = _makeRng(seed);
   // Build a random complex Gaussian matrix.
@@ -84,7 +69,7 @@ export function random_unitary(numQubits, seed = null) {
 }
 
 // Haar-random statevector of `numQubits` qubits.
-export function random_statevector(numQubits, seed = null) {
+export function randomStatevector(numQubits, seed = null) {
   const dim = 1 << numQubits;
   const rng = _makeRng(seed);
   const data = new Array(dim);
@@ -101,7 +86,7 @@ export function random_statevector(numQubits, seed = null) {
 }
 
 // Random Pauli on `numQubits` qubits.
-export function random_pauli(numQubits, seed = null) {
+export function randomPauli(numQubits, seed = null) {
   const rng = _makeRng(seed);
   let label = "";
   const chars = ["I", "X", "Y", "Z"];
@@ -114,18 +99,18 @@ export function random_pauli(numQubits, seed = null) {
 // Random Clifford on `numQubits` qubits. Uses the algorithm of
 // Bravyi & Maslov (2020): apply a sequence of random Clifford generators
 // (H, S, CX) to the |0...0> tableau.
-export function random_clifford(numQubits, seed = null) {
+export function randomClifford(numQubits, seed = null) {
   return Clifford.random(numQubits, seed);
 }
 
 // Random density matrix (mixed state) of `numQubits` qubits. Generates a
 // random statevector, builds its density matrix, then mixes it with the
 // maximally mixed state with a random weight.
-export function random_density_matrix(numQubits, seed = null, mixedWeight = null) {
+export function randomDensityMatrix(numQubits, seed = null, mixedWeight = null) {
   const dim = 1 << numQubits;
   const rng = _makeRng(seed);
-  const psi = random_statevector(numQubits, seed);
-  const pureRho = psi.to_operator()._data;
+  const psi = randomStatevector(numQubits, seed);
+  const pureRho = psi.toOperator()._data;
   const w = mixedWeight !== null ? mixedWeight : rng();
   const mixedRho = ComplexMatrix.zeros(dim, dim);
   for (let i = 0; i < dim; i++) {
@@ -138,9 +123,7 @@ export function random_density_matrix(numQubits, seed = null, mixedWeight = null
   return new DensityMatrix(mixedRho);
 }
 
-// ---------------------------------------------------------------------------
 // Entanglement measures.
-// ---------------------------------------------------------------------------
 
 // Purity of a density matrix: Tr(rho^2). Pure states have purity 1; the
 // maximally mixed state has purity 1/d.
@@ -158,7 +141,7 @@ export function purity(densityMatrix) {
 
 // Concurrence of a 2-qubit density matrix (Wootters 1998).
 export function concurrence(densityMatrix) {
-  if (densityMatrix.num_qubits !== 2) {
+  if (densityMatrix.numQubits !== 2) {
     throw new Error("concurrence is only defined for 2-qubit states");
   }
   const rho = densityMatrix._data;
@@ -180,7 +163,7 @@ export function concurrence(densityMatrix) {
 
 // Entanglement of formation: E = h((1 + sqrt(1 - C^2)) / 2),
 // where h is the binary entropy.
-export function entanglement_of_formation(densityMatrix) {
+export function entanglementOfFormation(densityMatrix) {
   const C = concurrence(densityMatrix);
   if (C < 1e-12) return 0;
   const x = (1 + Math.sqrt(1 - C * C)) / 2;
@@ -191,8 +174,8 @@ export function entanglement_of_formation(densityMatrix) {
 // Mutual information between two subsystems.
 //   I(A:B) = S(rho_A) + S(rho_B) - S(rho_AB)
 // where S is the von Neumann entropy.
-export function mutual_information(densityMatrix, subsystemA, subsystemB = null) {
-  const n = densityMatrix.num_qubits;
+export function mutualInformation(densityMatrix, subsystemA, subsystemB = null) {
+  const n = densityMatrix.numQubits;
   if (subsystemB == null) {
     // Default: A = first len(subsystemA) qubits, B = the rest.
     subsystemB = [];
@@ -201,8 +184,8 @@ export function mutual_information(densityMatrix, subsystemA, subsystemB = null)
     }
   }
   const rhoAB = densityMatrix;
-  const rhoA = rhoAB.partial_trace(_complement(subsystemA, n));
-  const rhoB = rhoAB.partial_trace(_complement(subsystemB, n));
+  const rhoA = rhoAB.partialTrace(_complement(subsystemA, n));
+  const rhoB = rhoAB.partialTrace(_complement(subsystemB, n));
   const sAB = _vonNeumannEntropy(rhoAB);
   const sA = _vonNeumannEntropy(rhoA);
   const sB = _vonNeumannEntropy(rhoB);
@@ -211,11 +194,11 @@ export function mutual_information(densityMatrix, subsystemA, subsystemB = null)
 
 // Gate fidelity between a channel's action and a target unitary.
 //   F_g(U, V) = |Tr(U^† V)|^2 / d^2
-export function gate_fidelity(unitary1, unitary2) {
+export function gateFidelity(unitary1, unitary2) {
   const u1 = unitary1._data || unitary1;
   const u2 = unitary2._data || unitary2;
   if (u1.rows !== u2.rows) {
-    throw new Error("gate_fidelity: unitaries must have the same dimension");
+    throw new Error("gateFidelity: unitaries must have the same dimension");
   }
   const d = u1.rows;
   const u1dag = u1.dagger();
@@ -230,19 +213,16 @@ export function gate_fidelity(unitary1, unitary2) {
 // (d * F_avg - 1) / (d - 1).
 export function unitarity(channel) {
   // Use the superoperator representation: ||chi||_F / sqrt(d * (d+1) / 2)
-  // This is a simplified definition; the exact formula involves the
-  // Choi matrix.
+    // Choi matrix.
   const d = channel.dim;
-  const choi = channel.to_choi();
+  const choi = channel.toChoi();
   const { eigenvalues } = choi.eigh();
   let sumSq = 0;
   for (const e of eigenvalues) sumSq += e * e;
   return Math.sqrt(sumSq) / d;
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function _makeRng(seed) {
   if (seed == null) return Math.random;

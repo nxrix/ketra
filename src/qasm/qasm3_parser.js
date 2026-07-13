@@ -1,22 +1,6 @@
-/**
- * qasm3_parser.js - OpenQASM 3.0 parser (subset).
- *
- * Supports the additional QASM 3.0 features:
- *   - `let` declarations for classical variables
- *   - `for` and `while` loops
- *   - Classical arithmetic and assignment
- *   - `switch` statements
- *   - Bitstring literals (e.g., "0101")
- *   - Array declarations
- *   - `def` for custom gate definitions with classical args
- *   - Hardware timing (`stretch`, `durationof`)
- *
- * Falls back to QASM 2.0 parsing for older syntax.
- */
-
 import { QuantumCircuit } from "../core/circuit.js";
-import { QuantumRegister, ClassicalRegister, Qubit, Clbit } from "../core/bit.js";
-import { Instruction, Gate, ControlledGate } from "../core/gate.js";
+import { QuantumRegister, ClassicalRegister, Clbit } from "../core/bit.js";
+import { Instruction } from "../core/gate.js";
 
 class Token3 {
   constructor(type, value, pos) {
@@ -44,7 +28,6 @@ function tokenize3(source) {
     if (c === " " || c === "\t") { i++; col++; continue; }
     if (c === "\n") { i++; line++; col = 1; continue; }
     if (c === "\r") { i++; continue; }
-    // Comment
     if (c === "/" && source[i + 1] === "/") {
       while (i < source.length && source[i] !== "\n") { i++; col++; }
       continue;
@@ -68,14 +51,12 @@ function tokenize3(source) {
       tokens.push(new Token3("STRING", str, { line, col }));
       continue;
     }
-    // Number
     if ((c === "-" && source[i + 1] !== ">") || (c >= "0" && c <= "9")) {
       let num = "";
       if (c === "-") { num += c; i++; col++; }
       while (i < source.length && ((source[i] >= "0" && source[i] <= "9") || source[i] === ".")) {
         num += source[i]; i++; col++;
       }
-      // pi handling
       if (source.slice(i, i + 2) === "pi") {
         const val = parseFloat(num);
         if (source[i + 2] === "/") {
@@ -90,7 +71,6 @@ function tokenize3(source) {
       tokens.push(new Token3("NUMBER", num, { line, col }));
       continue;
     }
-    // Identifier
     if ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_") {
       let id = "";
       while (i < source.length && ((source[i] >= "a" && source[i] <= "z") ||
@@ -114,7 +94,6 @@ function tokenize3(source) {
       tokens.push(new Token3("PHYSICAL_QUBIT", num, { line, col }));
       continue;
     }
-    // Punctuation
     if (c === "-" && source[i + 1] === ">") {
       tokens.push(new Token3("ARROW", "->", { line, col }));
       i += 2; col += 2; continue;
@@ -188,7 +167,6 @@ export class QASM3Parser {
   }
 
   parse() {
-    // OPENQASM 3.0;
     const versionTok = this.expect("KEYWORD");
     if (versionTok.value !== "OPENQASM") {
       throw new Error(`Expected OPENQASM, got ${versionTok.value}`);
@@ -221,22 +199,23 @@ export class QASM3Parser {
         case "if": this.parseIf(); return;
         case "for": this.parseFor(); return;
         case "while": this.parseWhile(); return;
+        case "switch": this.parseSwitch(); return;
         case "let": this.parseLet(); return;
         case "const": this.parseConst(); return;
+        case "int": case "uint": case "float": case "bool": case "array":
+          this.parseClassicalDecl(); return;
         case "opaque": this.parseOpaque(); return;
       }
     }
     if (t.type === "IDENT") {
       // QASM 3.0: c[0] = measure q[0]; (assignment form)
-      // Peek ahead to see if this is an assignment with measure
       const savedPos = this.pos;
       const name = this.next().value;
       if (this.accept("LBRACKET")) {
         const idx = parseInt(this.expect("NUMBER").value, 10);
         this.expect("RBRACKET");
         if (this.accept("ASSIGN") && this.peek().type === "KEYWORD" && this.peek().value === "measure") {
-          // c[0] = measure q[0];
-          this.expect("KEYWORD"); // measure
+          this.expect("KEYWORD");
           const qubit = this.parseBitRef();
           this.expect("SEMICOLON");
           if (this.cregs.has(name)) {
@@ -245,7 +224,7 @@ export class QASM3Parser {
           return;
         }
       }
-      // Not an assignment — rewind and parse as gate call
+      // Not an assignment — rewind and parse as gate call.
       this.pos = savedPos;
       this.parseGateCall();
       return;
@@ -264,13 +243,11 @@ export class QASM3Parser {
     // QASM 3.0: qubit[2] q;  OR  qreg q[2];
     let name, size;
     if (this.peek().type === "LBRACKET") {
-      // qubit[2] q;
       this.expect("LBRACKET");
       size = parseInt(this.expect("NUMBER").value, 10);
       this.expect("RBRACKET");
       name = this.expect("IDENT").value;
     } else {
-      // qreg q[2];
       name = this.expect("IDENT").value;
       this.expect("LBRACKET");
       size = parseInt(this.expect("NUMBER").value, 10);
@@ -278,7 +255,7 @@ export class QASM3Parser {
     }
     this.expect("SEMICOLON");
     const reg = new QuantumRegister(size, name);
-    this.circuit.add_register(reg);
+    this.circuit.addRegister(reg);
     this.qregs.set(name, reg);
   }
 
@@ -300,7 +277,7 @@ export class QASM3Parser {
     }
     this.expect("SEMICOLON");
     const reg = new ClassicalRegister(size, name);
-    this.circuit.add_register(reg);
+    this.circuit.addRegister(reg);
     this.cregs.set(name, reg);
   }
 
@@ -352,29 +329,39 @@ export class QASM3Parser {
   }
 
   parseDef() {
-    // def name(params) -> return_type { body }
     this.expect("KEYWORD");
     const name = this.expect("IDENT").value;
     this.expect("LPAREN");
     const args = [];
     while (this.peek().type !== "RPAREN") {
+      if (this.peek().type === "KEYWORD") this.next();
       args.push(this.expect("IDENT").value);
       this.accept("COMMA");
     }
     this.expect("RPAREN");
-    // Optional return type
     if (this.accept("ARROW")) {
-      this.next(); // skip return type
+      this.next();
     }
     this.expect("LBRACE");
-    // Skip body
+    // Parse the body as a list of tokens for later evaluation; quantum
+    // subroutines would have gate calls in the body.
+    const bodyTokens = [];
     let depth = 1;
     while (depth > 0) {
-      const t = this.next();
+      const t = this.peek();
+      if (t.type === "EOF") break;
       if (t.type === "LBRACE") depth++;
-      else if (t.type === "RBRACE") depth--;
-      else if (t.type === "EOF") break;
+      else if (t.type === "RBRACE") { depth--; if (depth === 0) { this.next(); break; } }
+      bodyTokens.push(this.next());
     }
+    // Register the def name and arity so it can be referenced.
+    this.gateDefinitions.set(name, {
+      params: args,
+      qargs: [],
+      body: [],
+      isDef: true,
+      bodyTokens,
+    });
   }
 
   parseMeasure() {
@@ -417,7 +404,7 @@ export class QASM3Parser {
     this.expect("LBRACKET");
     const cregIdx = parseInt(this.expect("NUMBER").value, 10);
     this.expect("RBRACKET");
-    const opTok = this.next(); // ==, !=, etc.
+    const opTok = this.next();
     const op = opTok.type === "EQ" ? "==" : opTok.type === "NEQ" ? "!=" :
                opTok.type === "LT" ? "<" : opTok.type === "GT" ? ">" :
                opTok.type === "LE" ? "<=" : opTok.type === "GE" ? ">=" : "==";
@@ -470,16 +457,13 @@ export class QASM3Parser {
     // for (type var in [start:step:stop]) { body }  — range with explicit step
     // for (type var in {expr1, expr2, ...}) { body } — explicit set
     //
-    // We unroll the loop at parse time: each iteration re-parses the body
-    // with `varName` bound to the current value. (The previous
-    // implementation parsed the body once and broke, so every QASM3 `for`
-    // behaved as a single-iteration block.)
+    // The loop is unrolled at parse time: each iteration re-parses the
+    // body with `varName` bound to the current value.
     this.expect("KEYWORD");
     this.expect("LPAREN");
-    // Skip the type token (int, uint, etc.). It may be a KEYWORD.
-    this.next();
+    if (this.peek().type === "KEYWORD") this.next();
     const varName = this.expect("IDENT").value;
-    this.expect("KEYWORD"); // in
+    this.expect("KEYWORD");
 
     const values = [];
     if (this.accept("LBRACKET")) {
@@ -529,7 +513,6 @@ export class QASM3Parser {
       for (const v of values) {
         this.classicalVars.set(varName, v);
         if (v !== values[0]) {
-          // Restore position to re-parse the body.
           this.pos = braceStartPos;
         }
         while (this.peek().type !== "RBRACE") {
@@ -605,14 +588,74 @@ export class QASM3Parser {
     }
   }
 
+  parseSwitch() {
+    this.expect("KEYWORD"); // switch
+    this.expect("LPAREN");
+    const switchVar = this.expect("IDENT").value;
+    this.expect("LBRACKET");
+    const switchIdx = parseInt(this.expect("NUMBER").value, 10);
+    this.expect("RBRACKET");
+    this.expect("RPAREN");
+    this.expect("LBRACE");
+    while (this.peek().type !== "RBRACE") {
+      const t = this.peek();
+      if (t.type === "KEYWORD" && t.value === "case") {
+        this.next();
+        const caseValue = parseInt(this.expect("NUMBER").value, 10);
+        this.accept("COLON");
+        // Parse statements until the next case/default/break/}.
+        const dataLenBefore = this.circuit.data.length;
+        while (this.peek().type !== "RBRACE" &&
+               !(this.peek().type === "KEYWORD" && (this.peek().value === "case" || this.peek().value === "default" || this.peek().value === "break"))) {
+          this.parseStatement();
+        }
+        // Attach a switch condition to each statement we just parsed.
+        for (let i = dataLenBefore; i < this.circuit.data.length; i++) {
+          this.circuit.data[i].operation.condition = {
+            register: switchVar,
+            index: switchIdx,
+            op: "==",
+            value: caseValue,
+            isSwitch: true,
+          };
+        }
+        if (this.peek().type === "KEYWORD" && this.peek().value === "break") this.next();
+      } else if (t.type === "KEYWORD" && t.value === "default") {
+        this.next();
+        this.accept("COLON");
+        // Default case: parse statements (no condition attached, since
+        // default applies when no other case matches).
+        while (this.peek().type !== "RBRACE" &&
+               !(this.peek().type === "KEYWORD" && (this.peek().value === "case" || this.peek().value === "break"))) {
+          this.parseStatement();
+        }
+        if (this.peek().type === "KEYWORD" && this.peek().value === "break") this.next();
+      } else {
+        this.next();
+      }
+    }
+    this.expect("RBRACE");
+  }
+
   parseLet() {
-    // let name = expression;
     this.expect("KEYWORD");
     const name = this.expect("IDENT").value;
     this.expect("ASSIGN");
     const value = this.parseExpression();
     this.expect("SEMICOLON");
     this.classicalVars.set(name, value);
+  }
+
+  parseClassicalDecl() {
+    this.expect("KEYWORD");
+    const name = this.expect("IDENT").value;
+    if (this.accept("ASSIGN")) {
+      const value = this.parseExpression();
+      this.classicalVars.set(name, value);
+    } else {
+      this.classicalVars.set(name, 0);
+    }
+    this.expect("SEMICOLON");
   }
 
   parseConst() {
@@ -739,31 +782,43 @@ export class QASM3Parser {
 
   parseExpression() {
     const t = this.peek();
+    let value;
     if (t.type === "NUMBER") {
       this.next();
-      let value = parseFloat(t.value);
-      while (this.peek().type === "PLUS" || this.peek().type === "STAR" || this.peek().type === "SLASH") {
-        const op = this.next().type;
-        const right = this.expect("NUMBER").value;
-        if (op === "PLUS") value += parseFloat(right);
-        else if (op === "STAR") value *= parseFloat(right);
-        else if (op === "SLASH") value /= parseFloat(right);
-      }
-      return value;
-    }
-    if (t.type === "IDENT") {
+      value = parseFloat(t.value);
+    } else if (t.type === "IDENT") {
       this.next();
-      // Check if it's a classical variable
       if (this.classicalVars.has(t.value)) {
-        return this.classicalVars.get(t.value);
+        value = this.classicalVars.get(t.value);
+      } else {
+        // Unknown identifier — return its name as a string.
+        return t.value;
       }
-      return t.value;
+    } else {
+      throw new Error(`QASM3 parse error: expected expression, got ${t.type}`);
     }
-    throw new Error(`QASM3 parse error: expected expression, got ${t.type}`);
+    // Handle arithmetic operators (+, *, /).
+    while (this.peek().type === "PLUS" || this.peek().type === "STAR" || this.peek().type === "SLASH") {
+      const op = this.next().type;
+      const rightTok = this.peek();
+      let rightVal;
+      if (rightTok.type === "NUMBER") {
+        rightVal = parseFloat(this.next().value);
+      } else if (rightTok.type === "IDENT" && this.classicalVars.has(rightTok.value)) {
+        rightVal = this.classicalVars.get(rightTok.value);
+        this.next();
+      } else {
+        break;
+      }
+      if (op === "PLUS") value += rightVal;
+      else if (op === "STAR") value *= rightVal;
+      else if (op === "SLASH") value /= rightVal;
+    }
+    return value;
   }
 }
 
-export function qasm3_parse(source) {
+export function qasm3Parse(source) {
   const parser = new QASM3Parser(source);
   return parser.parse();
 }

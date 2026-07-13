@@ -1,10 +1,3 @@
-/**
- * generalized_gates.js - Parameterized single- and two-qubit gates.
- *
- * generalized_gates: RX, RY, RZ, P (Phase),
- * U1, U2, U3, U, RXX, RYY, RZZ, RZX.
- */
-
 import { Complex, ComplexMatrix } from "./../math/linalg.js";
 import { Gate } from "./../core/gate.js";
 import { _registerParamBuilder } from "./../core/circuit.js";
@@ -122,9 +115,7 @@ export function makeUGate(theta, phi, lambda) {
 // Controlled-U gate with global phase.
 // Qiskit's CU(θ, φ, λ, γ) = |0><0| ⊗ I + |1><1| ⊗ (e^{iγ} U3(θ, φ, λ)).
 // The γ parameter is a global phase applied to the U3 block when the
-// control is |1> (it does NOT affect the |0> branch). The previous
-// implementation dropped γ entirely, which made any circuit using cu(…,
-// γ≠0) produce wrong unitaries.
+// control is |1> (it does NOT affect the |0> branch).
 export function makeCUGate(theta, phi, lambda, gamma) {
   const g = new Gate("cu", 2, [theta, phi, lambda, gamma]);
   g._matrixBuilder = (params) => {
@@ -235,7 +226,6 @@ export function makeRZXGate(theta) {
   return g;
 }
 
-// Register all parameterized builders
 _registerParamBuilder("RX", makeRXGate);
 _registerParamBuilder("RY", makeRYGate);
 _registerParamBuilder("RZ", makeRZGate);

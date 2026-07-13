@@ -59,31 +59,31 @@ export { SchmidtDecomposition } from "./quantum_info/schmidt.js";
 // Quantum channels
 export {
   QuantumChannel, Kraus, SuperOp, Chi, PTM,
-  state_fidelity, process_fidelity, average_gate_fidelity, diamond_norm,
+  stateFidelity, processFidelity, averageGateFidelity, diamondNorm,
 } from "./quantum_info/channels.js";
 
 // Additional quantum_info functions (random generators, entanglement measures)
 export {
-  random_unitary, random_statevector, random_pauli, random_clifford,
-  random_density_matrix,
-  purity, concurrence, entanglement_of_formation,
-  mutual_information, gate_fidelity, unitarity,
+  randomUnitary, randomStatevector, randomPauli, randomClifford,
+  randomDensityMatrix,
+  purity, concurrence, entanglementOfFormation,
+  mutualInformation, gateFidelity, unitarity,
 } from "./quantum_info/quantum_info_extra.js";
 
 // Simulator
 export { StatevectorSimulator, simulate } from "./simulator/statevector_simulator.js";
 
 // Noisy simulator
-export { QasmSimulator, simulate_noisy } from "./simulator/qasm_simulator.js";
+export { QasmSimulator, simulateNoisy } from "./simulator/qasm_simulator.js";
 
 // Noise models
 export {
   QuantumError, NoiseModel, ReadoutError,
-  depolarizing_error, bit_flip_error, phase_flip_error,
-  amplitude_damping_error, phase_damping_error,
-  pauli_x_error, pauli_y_error, pauli_z_error,
-  reset_error, kraus_error, mixed_unitary_error,
-  combine_errors,
+  depolarizingError, bitFlipError, phaseFlipError,
+  amplitudeDampingError, phaseDampingError,
+  pauliXError, pauliYError, pauliZError,
+  resetError, krausError, mixedUnitaryError,
+  combineErrors,
 } from "./noise/noise_models.js";
 
 // Transpiler
@@ -108,8 +108,8 @@ export {
 // Real Sabre routing
 export {
   SabreLayout as SabreLayoutReal, SabreSwap as SabreSwapReal,
-  collect_1q_runs, collect_2q_runs, consolidate_blocks,
-  optimize_cliffords, remove_diagonal_gates_before_measure,
+  collect1qRuns, collect2qRuns, consolidateBlocks,
+  optimizeCliffords, removeDiagonalGatesBeforeMeasure,
 } from "./transpiler/sabre.js";
 
 // Result
@@ -118,18 +118,18 @@ export { Result, Counts } from "./result/result.js";
 // DAGCircuit + converters + DAG passes
 export { DAGCircuit, DAGOpNode, DAGInNode, DAGOutNode, DAGRegister } from "./dagcircuit/dagcircuit.js";
 export {
-  collect_1q_runs as dag_collect_1q_runs, collect_2q_runs as dag_collect_2q_runs,
-  consolidate_blocks as dag_consolidate_blocks, optimize_cliffords as dag_optimize_cliffords,
-  remove_diagonal_gates_before_measure as dag_remove_diag_before_measure,
-  elide_permutations, remove_redundant_gates, commutative_cancellation, template_optimization,
+  collect1qRuns as dagCollect1qRuns, collect2qRuns as dagCollect2qRuns,
+  consolidateBlocks as dagConsolidateBlocks, optimizeCliffords as dagOptimizeCliffords,
+  removeDiagonalGatesBeforeMeasure as dagRemoveDiagBeforeMeasure,
+  elidePermutations, removeRedundantGates, commutativeCancellation, templateOptimization,
 } from "./dagcircuit/dag_passes.js";
-export { circuit_to_dag, dag_to_circuit } from "./converters/converters.js";
+export { circuitToDag, dagToCircuit } from "./converters/converters.js";
 
 // QASM
-export { QASMParser } from "./qasm/qasm_parser.js";
+export { QASMParser, qasm2Parse } from "./qasm/qasm_parser.js";
 export { QASMExporter } from "./qasm/qasm_exporter.js";
-export { QASM3Parser, qasm3_parse } from "./qasm/qasm3_parser.js";
-export { QASM3Exporter, qasm3_export } from "./qasm/qasm3_exporter.js";
+export { QASM3Parser, qasm3Parse } from "./qasm/qasm3_parser.js";
+export { QASM3Exporter, qasm3Export } from "./qasm/qasm3_exporter.js";
 
 // Primitives
 export { Estimator, Sampler, BaseEstimator, BaseSampler } from "./primitives/primitives.js";
@@ -164,7 +164,7 @@ export { GradientBase, ParamShift, FiniteDiff, LinearCombination, NaturalGradien
 
 // Visualization
 export {
-  draw_circuit, plot_histogram, plot_state_city,
+  drawCircuit, plot_histogram, plot_state_city,
   plot_bloch_vector, plot_state_hinton, plot_state_qsphere,
 } from "./visualization/visualization.js";
 
@@ -175,7 +175,6 @@ export {
 } from "./visualization/ascii_viz.js";
 
 // Convenience: top-level execute (qiskit.execute equivalent)
-import { simulate as _simulate } from "./simulator/statevector_simulator.js";
 export function execute(circuit, options = {}) {
   const shots = options.shots || 1024;
   return _simulate(circuit, shots, options);

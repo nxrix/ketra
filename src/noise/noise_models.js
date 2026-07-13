@@ -1,20 +1,6 @@
-/**
- * noise_models.js - Quantum noise models and error channels.
- *
- * Quantum noise models and error channels.
- * Provides:
- *   - QuantumError: a list of (Kraus operators, probability) tuples
- *   - NoiseModel: maps errors to gates/qubits
- *   - Standard channels: depolarizing, bit_flip, phase_flip, amplitude_damping,
- *     phase_damping, pauli_x/y/z, kraus, readout_error
- *   - Helpers: combine_errors, mixed_unitary_error
- */
+import { Complex, ComplexMatrix, PAULI } from "../math/linalg.js";
 
-import { Complex, ComplexMatrix, ComplexVector, PAULI } from "../math/linalg.js";
-
-// ---------------------------------------------------------------------------
 // QuantumError
-// ---------------------------------------------------------------------------
 export class QuantumError {
   constructor(terms = []) {
     // terms: array of { operators: ComplexMatrix[], probability: number }
@@ -28,7 +14,7 @@ export class QuantumError {
   }
 
   get size() { return this.terms.length; }
-  get num_qubits() {
+  get numQubits() {
     if (this.terms.length === 0) return 0;
     const rows = this.terms[0].operators[0].rows;
     const n = Math.log2(rows);
@@ -47,7 +33,7 @@ export class QuantumError {
         // rho' += p * K * rho * K^dagger
         const Krho = K.mul(densityMatrix);
         const KrhoKd = Krho.mul(K.dagger());
-        result.add_inplace(KrhoKd.scale(term.probability));
+        result.addInplace(KrhoKd.scale(term.probability));
       }
     }
     return result;
@@ -95,12 +81,10 @@ export class QuantumError {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Standard error channels
-// ---------------------------------------------------------------------------
 
 // Depolarizing error: with prob p, replace state with I/2^n
-export function depolarizing_error(prob, numQubits) {
+export function depolarizingError(prob, numQubits) {
   // For 1 qubit: E(rho) = (1-p)*rho + p*I/2
   // Kraus: K0 = sqrt(1-p)*I, K1 = sqrt(p/3)*X, K2 = sqrt(p/3)*Y, K3 = sqrt(p/3)*Z
   // For n qubits: standard depolarizing
@@ -130,7 +114,7 @@ export function depolarizing_error(prob, numQubits) {
 }
 
 // Bit flip: with prob p, apply X
-export function bit_flip_error(prob) {
+export function bitFlipError(prob) {
   const K0 = ComplexMatrix.identity(2).scale(Math.sqrt(1 - prob));
   const K1 = PAULI.X.scale(Math.sqrt(prob));
   return new QuantumError([
@@ -140,7 +124,7 @@ export function bit_flip_error(prob) {
 }
 
 // Phase flip: with prob p, apply Z
-export function phase_flip_error(prob) {
+export function phaseFlipError(prob) {
   const K0 = ComplexMatrix.identity(2).scale(Math.sqrt(1 - prob));
   const K1 = PAULI.Z.scale(Math.sqrt(prob));
   return new QuantumError([
@@ -150,8 +134,8 @@ export function phase_flip_error(prob) {
 }
 
 // Pauli X error: with prob p, apply X (alias for bit_flip)
-export function pauli_x_error(prob) { return bit_flip_error(prob); }
-export function pauli_y_error(prob) {
+export function pauliXError(prob) { return bitFlipError(prob); }
+export function pauliYError(prob) {
   const K0 = ComplexMatrix.identity(2).scale(Math.sqrt(1 - prob));
   const K1 = PAULI.Y.scale(Math.sqrt(prob));
   return new QuantumError([
@@ -159,10 +143,10 @@ export function pauli_y_error(prob) {
     { operators: [K1], probability: prob },
   ]);
 }
-export function pauli_z_error(prob) { return phase_flip_error(prob); }
+export function pauliZError(prob) { return phaseFlipError(prob); }
 
 // Amplitude damping: |1> -> |0> with prob gamma
-export function amplitude_damping_error(gamma) {
+export function amplitudeDampingError(gamma) {
   const K0 = ComplexMatrix.fromRows([
     [new Complex(1, 0), new Complex(0, 0)],
     [new Complex(0, 0), new Complex(Math.sqrt(1 - gamma), 0)],
@@ -177,7 +161,7 @@ export function amplitude_damping_error(gamma) {
 }
 
 // Phase damping: loses phase info without losing energy
-export function phase_damping_error(gamma) {
+export function phaseDampingError(gamma) {
   const K0 = ComplexMatrix.fromRows([
     [new Complex(1, 0), new Complex(0, 0)],
     [new Complex(0, 0), new Complex(Math.sqrt(1 - gamma), 0)],
@@ -192,7 +176,7 @@ export function phase_damping_error(gamma) {
 }
 
 // Reset error: with prob p, reset to |0>
-export function reset_error(prob, numQubits = 1) {
+export function resetError(prob, numQubits = 1) {
   const dim = 1 << numQubits;
   const proj0 = ComplexMatrix.zeros(dim, dim);
   proj0.set(0, 0, new Complex(1, 0));
@@ -206,7 +190,7 @@ export function reset_error(prob, numQubits = 1) {
 }
 
 // General Kraus error
-export function kraus_error(krausOps) {
+export function krausError(krausOps) {
   // krausOps: array of ComplexMatrix
   // Single term with all Kraus operators, probability 1
   return new QuantumError([
@@ -215,7 +199,7 @@ export function kraus_error(krausOps) {
 }
 
 // Mixed unitary error: list of (unitary, probability) pairs
-export function mixed_unitary_error(errors) {
+export function mixedUnitaryError(errors) {
   // errors: [{ unitary: ComplexMatrix, probability: number }]
   return new QuantumError(errors.map(e => ({
     operators: [e.unitary],
@@ -223,33 +207,29 @@ export function mixed_unitary_error(errors) {
   })));
 }
 
-// Readout error: prob of measuring wrong bit value
-export function ReadoutError(probabilities) {
-  // probabilities: [[p00, p01], [p10, p11]] where pij = P(measured=i | actual=j)
-  // For 1 qubit: [[p(0|0), p(0|1)], [p(1|0), p(1|1)]]
-  this.probabilities = probabilities;
-  this.num_qubits = Math.log2(probabilities.length);
+export class ReadoutError {
+  constructor(probabilities) {
+    this.probabilities = probabilities;
+    this.numQubits = Math.log2(probabilities.length);
+  }
 
-  this.apply = function(classicalBits) {
-    // classicalBits: array of 0/1
+  apply(classicalBits) {
     const measured = [];
     for (let i = 0; i < classicalBits.length; i++) {
       const actual = classicalBits[i];
       const r = Math.random();
-      const probActual = this.probabilities[actual]; // [p(0|actual), p(1|actual)]
+      const probActual = this.probabilities[actual];
       measured.push(r < probActual[0] ? 0 : 1);
     }
     return measured;
-  };
+  }
 
-  this.copy = function() {
+  copy() {
     return new ReadoutError(this.probabilities.map(row => row.slice()));
-  };
+  }
 }
 
-// ---------------------------------------------------------------------------
 // NoiseModel
-// ---------------------------------------------------------------------------
 export class NoiseModel {
   constructor() {
     // Map from gate name -> [QuantumError]
@@ -261,7 +241,7 @@ export class NoiseModel {
     this._readout_errors = [];
   }
 
-  get basis_gates() {
+  get basisGates() {
     const gates = new Set();
     for (const g of this._local_quantum_errors.keys()) gates.add(g);
     for (const g of this._basis_gate_errors.keys()) gates.add(g);
@@ -269,7 +249,7 @@ export class NoiseModel {
   }
 
   // Add a quantum error for a specific gate on specific qubits
-  add_quantum_error(error, gates, qubits = null) {
+  addQuantumError(error, gates, qubits = null) {
     const gateList = Array.isArray(gates) ? gates : [gates];
     for (const gate of gateList) {
       const key = qubits ? `${gate}:${qubits.join(",")}` : gate;
@@ -279,14 +259,26 @@ export class NoiseModel {
         }
         this._local_quantum_errors.get(gate).set(qubits.join(","), error);
       } else {
+        // No qubits specified: apply to all qubits.
         this._basis_gate_errors.set(gate, error);
       }
     }
     return this;
   }
 
+  // Alias matching qiskit's addAllQubitQuantumError.
+  addAllQubitQuantumError(error, gates) {
+    return this.addQuantumError(error, gates, null);
+  }
+
+  // Add a readout error for all qubits.
+  addAllQubitReadoutError(error) {
+    this._readout_errors.push(error);
+    return this;
+  }
+
   // Add a readout error for specific qubits
-  add_readout_error(error, qubits = null) {
+  addReadoutError(error, qubits = null) {
     if (qubits) {
       this._readout_errors.push({ error, qubits });
     } else {
@@ -296,7 +288,7 @@ export class NoiseModel {
   }
 
   // Get the quantum error for a gate on specific qubits (or null)
-  get_quantum_error(gate, qubits) {
+  getQuantumError(gate, qubits) {
     // Check local first
     if (this._local_quantum_errors.has(gate)) {
       const local = this._local_quantum_errors.get(gate);
@@ -312,7 +304,7 @@ export class NoiseModel {
 
   // Check if a gate has an error
   has_quantum_error(gate, qubits) {
-    return this.get_quantum_error(gate, qubits) !== null;
+    return this.getQuantumError(gate, qubits) !== null;
   }
 
   // Get all readout errors
@@ -328,16 +320,14 @@ export class NoiseModel {
     return nm;
   }
 
-  is_empty() {
+  isEmpty() {
     return this._local_quantum_errors.size === 0 &&
            this._basis_gate_errors.size === 0 &&
            this._readout_errors.length === 0;
   }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function _generatePauliGroup(numQubits) {
   // Generate all n-qubit Pauli operators (tensor products of I, X, Y, Z)
@@ -357,7 +347,7 @@ function _generatePauliGroup(numQubits) {
 }
 
 // Combine multiple errors into one (applied in sequence)
-export function combine_errors(...errors) {
+export function combineErrors(...errors) {
   if (errors.length === 0) return new QuantumError([]);
   let result = errors[0];
   for (let i = 1; i < errors.length; i++) {

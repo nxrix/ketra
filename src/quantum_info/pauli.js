@@ -1,11 +1,3 @@
-/**
- * pauli.js - Pauli operators, PauliList, and SparsePauliOp.
- *
- * *
- * A Pauli is represented internally as two bit arrays: z (Z-part) and x (X-part).
- * The full operator is (-i)^(x·z) * X^x · Z^z (symplectic representation).
- */
-
 import { Complex, ComplexMatrix, PAULI } from "./../math/linalg.js";
 
 const PAULI_MATRICES = {
@@ -32,7 +24,7 @@ export class Pauli {
       else if (ch === "I") { /* both zero */ }
       else throw new Error(`Invalid Pauli label char: ${ch}`);
     }
-    this.num_qubits = n;
+    this.numQubits = n;
   }
 
   static fromSymplectic(x, z) {
@@ -51,7 +43,7 @@ export class Pauli {
   // Build the matrix for this Pauli operator.
   //
   // Symplectic convention used throughout Ketra (matching the
-  // SparsePauliOp expectation_value fast path):
+  // SparsePauliOp expectationValue fast path):
   //
   //   P(x, z) = i^(x·z) · X^x · Z^z    (per qubit, then tensor product)
   //
@@ -62,12 +54,10 @@ export class Pauli {
   //   P(1,1) = i · X · Z = i · (XZ) = i · (−iY) = Y     ← the i^(xz)
   //            factor is exactly what turns XZ into Y, so the matrix for
   //            the (1,1) entry is the standard Pauli-Y matrix and NO
-  //            extra global phase is applied on top. (Applying i^#Y again
-  //            would double-count the i and produce a wrong sign — that
-  //            was the previous bug.)
-  to_matrix() {
+  //            extra global phase is applied on top.
+  toMatrix() {
     const mats = [];
-    for (let i = 0; i < this.num_qubits; i++) {
+    for (let i = 0; i < this.numQubits; i++) {
       if (this.x[i] && this.z[i]) mats.push(PAULI_MATRICES["Y"]);
       else if (this.x[i]) mats.push(PAULI_MATRICES["X"]);
       else if (this.z[i]) mats.push(PAULI_MATRICES["Z"]);
@@ -98,13 +88,13 @@ export class Pauli {
   // (X·Y = iZ, Y·X = −iZ, Z·X = iY, Y·Z = iX, Z·Y = −iX, X·Z = −iY,
   // Y·Y = I, X·X = I, Z·Z = I, etc.).
   compose(other) {
-    if (this.num_qubits !== other.num_qubits) {
+    if (this.numQubits !== other.numQubits) {
       throw new Error("Pauli composition: qubit count mismatch");
     }
-    const newX = new Array(this.num_qubits).fill(0);
-    const newZ = new Array(this.num_qubits).fill(0);
+    const newX = new Array(this.numQubits).fill(0);
+    const newZ = new Array(this.numQubits).fill(0);
     let phase = 0;
-    for (let i = 0; i < this.num_qubits; i++) {
+    for (let i = 0; i < this.numQubits; i++) {
       const x1 = this.x[i], z1 = this.z[i];
       const x2 = other.x[i], z2 = other.z[i];
       newX[i] = x1 ^ x2;
@@ -121,15 +111,15 @@ export class Pauli {
 
   multiply(other) {
     const r = this.compose(other);
-    return r.pauli.to_matrix().scale(r.phase);
+    return r.pauli.toMatrix().scale(r.phase);
   }
 
-  to_label() { return this.label; }
+  toLabel() { return this.label; }
 
   equals(other) {
     if (!(other instanceof Pauli)) return false;
-    if (this.num_qubits !== other.num_qubits) return false;
-    for (let i = 0; i < this.num_qubits; i++) {
+    if (this.numQubits !== other.numQubits) return false;
+    for (let i = 0; i < this.numQubits; i++) {
       if (this.x[i] !== other.x[i] || this.z[i] !== other.z[i]) return false;
     }
     return true;
@@ -137,18 +127,18 @@ export class Pauli {
 
   weight() {
     let w = 0;
-    for (let i = 0; i < this.num_qubits; i++) {
+    for (let i = 0; i < this.numQubits; i++) {
       if (this.x[i] || this.z[i]) w++;
     }
     return w;
   }
 
   commutes(other) {
-    if (this.num_qubits !== other.num_qubits) {
+    if (this.numQubits !== other.numQubits) {
       throw new Error("Pauli commutes: qubit count mismatch");
     }
     let anticommute = 0;
-    for (let i = 0; i < this.num_qubits; i++) {
+    for (let i = 0; i < this.numQubits; i++) {
       anticommute += (this.x[i] * other.z[i] + this.z[i] * other.x[i]) % 2;
     }
     return anticommute % 2 === 0;
@@ -159,12 +149,12 @@ export class Pauli {
   // Apply X/Y/Z to specific qubits (single-qubit Pauli evolution)
   evolve(other) {
     // P -> P * other (Pauli group multiplication, ignoring phase)
-    if (this.num_qubits !== other.num_qubits) {
+    if (this.numQubits !== other.numQubits) {
       throw new Error("evolve: qubit count mismatch");
     }
-    const newX = new Array(this.num_qubits).fill(0);
-    const newZ = new Array(this.num_qubits).fill(0);
-    for (let i = 0; i < this.num_qubits; i++) {
+    const newX = new Array(this.numQubits).fill(0);
+    const newZ = new Array(this.numQubits).fill(0);
+    for (let i = 0; i < this.numQubits; i++) {
       newX[i] = this.x[i] ^ other.x[i];
       newZ[i] = this.z[i] ^ other.z[i];
     }
@@ -182,12 +172,12 @@ export class PauliList {
       this.paulis = [labels instanceof Pauli ? labels : new Pauli(labels)];
     }
     if (this.paulis.length > 0) {
-      this.num_qubits = this.paulis[0].num_qubits;
+      this.numQubits = this.paulis[0].numQubits;
       for (const p of this.paulis) {
-        if (p.num_qubits !== this.num_qubits) throw new Error("All Paulis must have same length");
+        if (p.numQubits !== this.numQubits) throw new Error("All Paulis must have same length");
       }
     } else {
-      this.num_qubits = 0;
+      this.numQubits = 0;
     }
   }
 
@@ -195,8 +185,8 @@ export class PauliList {
   get length() { return this.paulis.length; }
   get(i) { return this.paulis[i]; }
   [Symbol.iterator]() { return this.paulis[Symbol.iterator](); }
-  to_labels() { return this.paulis.map(p => p.label); }
-  to_matrices() { return this.paulis.map(p => p.to_matrix()); }
+  toLabels() { return this.paulis.map(p => p.label); }
+  toMatrices() { return this.paulis.map(p => p.toMatrix()); }
   weights() { return this.paulis.map(p => p.weight()); }
 
   append(other) {
@@ -219,16 +209,16 @@ export class SparsePauliOp {
     if (this.coeffs.length !== n) {
       throw new Error("SparsePauliOp: paulis and coeffs length mismatch");
     }
-    this.num_qubits = this.paulis.num_qubits;
+    this.numQubits = this.paulis.numQubits;
   }
 
-  static from_list(list) {
+  static fromList(list) {
     const paulis = list.map(([p]) => p instanceof Pauli ? p : new Pauli(p));
     const coeffs = list.map(([_, c]) => c instanceof Complex ? c : new Complex(c, 0));
     return new SparsePauliOp(new PauliList(paulis), coeffs);
   }
 
-  static from_sparse_list(zlist, numQubits) {
+  static fromSparseList(zlist, numQubits) {
     const paulis = zlist.map(([label]) => {
       let padded = label;
       while (padded.length < numQubits) padded = "I" + padded;
@@ -238,9 +228,9 @@ export class SparsePauliOp {
     return new SparsePauliOp(new PauliList(paulis), coeffs);
   }
 
-  static from_operator(operator) {
+  static fromOperator(operator) {
     // Decompose an operator into a sum of Paulis (exponential cost in qubit count)
-    const n = operator.num_qubits;
+    const n = operator.numQubits;
     const dim = 1 << n;
     const pauliLabels = [];
     function genLabels(prefix, depth) {
@@ -251,7 +241,7 @@ export class SparsePauliOp {
     const results = [];
     for (const label of pauliLabels) {
       const p = new Pauli(label);
-      const m = p.to_matrix();
+      const m = p.toMatrix();
       // Tr(P * O) / 2^n gives the coefficient
       let coeff = new Complex(0, 0);
       for (let i = 0; i < dim; i++) {
@@ -264,14 +254,14 @@ export class SparsePauliOp {
         results.push([p, coeff]);
       }
     }
-    return SparsePauliOp.from_list(results);
+    return SparsePauliOp.fromList(results);
   }
 
-  to_matrix() {
-    const dim = 1 << this.num_qubits;
+  toMatrix() {
+    const dim = 1 << this.numQubits;
     const result = ComplexMatrix.zeros(dim, dim);
     for (let i = 0; i < this.paulis.size; i++) {
-      const m = this.paulis.get(i).to_matrix();
+      const m = this.paulis.get(i).toMatrix();
       const c = this.coeffs[i];
       for (let k = 0; k < m.data.length; k++) {
         result.data[k] = result.data[k].add(m.data[k].mul(c));
@@ -280,7 +270,7 @@ export class SparsePauliOp {
     return result;
   }
 
-  to_list() {
+  toList() {
     const out = [];
     for (let i = 0; i < this.paulis.size; i++) {
       out.push([this.paulis.get(i).label, this.coeffs[i]]);
@@ -324,8 +314,8 @@ export class SparsePauliOp {
   // Iterate over non-zero (row, col, value) entries of the operator's
   // matrix representation. Yields [row, col, Complex] tuples. Useful for
   // sparse matrix construction without materializing the full matrix.
-  *matrix_iter() {
-    const dim = 1 << this.num_qubits;
+  *matrixIter() {
+    const dim = 1 << this.numQubits;
     for (let ti = 0; ti < this.paulis.size; ti++) {
       const pauli = this.paulis.get(ti);
       const coeff = this.coeffs[ti];
@@ -333,7 +323,7 @@ export class SparsePauliOp {
       // For each Pauli, the non-zero entries are at (i, i XOR mask) with
       // phase iPow * (-1)^popcount((i XOR mask) & z) * coeff.
       let mask = 0, yMask = 0, zOnlyMask = 0, yCount = 0;
-      for (let q = 0; q < this.num_qubits; q++) {
+      for (let q = 0; q < this.numQubits; q++) {
         if (x[q]) {
           mask |= (1 << q);
           if (z[q]) { yMask |= (1 << q); yCount++; }
@@ -346,7 +336,7 @@ export class SparsePauliOp {
         const j = i ^ mask;
         // Phase from Z-only qubits and Y qubits (depends on j = i XOR mask).
         let parity = 0;
-        for (let q = 0; q < this.num_qubits; q++) {
+        for (let q = 0; q < this.numQubits; q++) {
           if (zOnlyMask & (1 << q) & i) parity ^= 1;
           if (yMask & (1 << q) & j) parity ^= 1;
         }
@@ -362,14 +352,13 @@ export class SparsePauliOp {
 
   // Group the Paulis into mutually-commuting subsets (for measurement
   // optimization). Returns an array of SparsePauliOp instances.
-  noncommutation_groups() {
+  noncommutationGroups() {
     const groups = [];
     for (let i = 0; i < this.paulis.size; i++) {
       const pi = this.paulis.get(i);
       const ci = this.coeffs[i];
       let placed = false;
       for (const g of groups) {
-        // Check if pi commutes with every Pauli in g.
         let commutes = true;
         for (const pj of g.paulis) {
           if (!pi.commutes(pj)) { commutes = false; break; }
@@ -398,12 +387,11 @@ export class SparsePauliOp {
     );
   }
 
-  // Split into chunks of mutually-commuting terms (alias for noncommutation_groups
+  // Split into chunks of mutually-commuting terms (alias for noncommutationGroups
   // with a size cap).
   chunk(maxSize = Infinity) {
-    const groups = this.noncommutation_groups();
+    const groups = this.noncommutationGroups();
     if (maxSize === Infinity) return groups;
-    // Split groups larger than maxSize.
     const result = [];
     for (const g of groups) {
       if (g.paulis.size <= maxSize) {
@@ -428,7 +416,7 @@ export class SparsePauliOp {
     const newCoeffs = this.coeffs.map((c, i) => {
       let yCount = 0;
       const p = this.paulis.get(i);
-      for (let j = 0; j < p.num_qubits; j++) if (p.x[j] && p.z[j]) yCount++;
+      for (let j = 0; j < p.numQubits; j++) if (p.x[j] && p.z[j]) yCount++;
       const sign = (yCount % 2 === 0) ? 1 : -1;
       return new Complex(c.re * sign, c.im * sign);
     });
@@ -439,7 +427,7 @@ export class SparsePauliOp {
     const newCoeffs = this.coeffs.map(c => c.conjugate());
     const adjustedPaulis = this.paulis.paulis.map(p => {
       let yCount = 0;
-      for (let i = 0; i < p.num_qubits; i++) if (p.x[i] && p.z[i]) yCount++;
+      for (let i = 0; i < p.numQubits; i++) if (p.x[i] && p.z[i]) yCount++;
       return { pauli: p, sign: (yCount % 2 === 0) ? 1 : -1 };
     });
     const finalCoeffs = newCoeffs.map((c, i) => new Complex(c.re * adjustedPaulis[i].sign, c.im * adjustedPaulis[i].sign));
@@ -475,9 +463,8 @@ export class SparsePauliOp {
     return new SparsePauliOp(new PauliList(newPaulis), newCoeffs);
   }
 
-  // Apply to a statevector
-  apply_to_vector(vector) {
-    return this.to_matrix().matvec(vector);
+  applyToVector(vector) {
+    return this.toMatrix().matvec(vector);
   }
 
   // Expectation value <psi|H|psi>.
@@ -485,9 +472,9 @@ export class SparsePauliOp {
   // to the statevector amplitudes without materializing the full 2^n x 2^n
   // matrix. For n=10 qubits and m=100 terms this is ~100x faster than the
   // matrix-based approach.
-  expectation_value(statevector) {
+  expectationValue(statevector) {
     const sv = statevector._data || statevector.data;
-    const n = this.num_qubits;
+    const n = this.numQubits;
     const dim = 1 << n;
     let totalRe = 0, totalIm = 0;
     for (let ti = 0; ti < this.paulis.size; ti++) {
@@ -547,14 +534,14 @@ export class SparsePauliOp {
   }
 
   // Legacy matrix-based expectation value (kept for testing / verification).
-  expectation_value_matrix(statevector) {
-    const m = this.to_matrix();
+  expectationValueMatrix(statevector) {
+    const m = this.toMatrix();
     const opResult = m.matvec(statevector._data);
     return statevector._data.inner(opResult);
   }
 
   toString() {
-    return this.to_list().map(([l, c]) => `${c}*${l}`).join(" + ");
+    return this.toList().map(([l, c]) => `${c}*${l}`).join(" + ");
   }
 }
 

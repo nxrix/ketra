@@ -6,7 +6,7 @@
   "main": "./dist/ketra.js",
   "module": "./dist/ketra.js",
   "exports": {
-    ".": "./dist/ketra.js"
+    ".": "./dist/ketra.js",
   },
   "browser": "./dist/ketra.js",
   "unpkg": "./dist/ketra.min.js",
@@ -17,7 +17,9 @@
   ],
   "scripts": {
     "build": "node build.js",
-    "test": "node test.js"
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:fast": "jest"
   },
   "keywords": [
     "quantum",
@@ -44,6 +46,31 @@
     "url": "https://github.com/nxrix/ketra/issues"
   },
   "devDependencies": {
-    "esbuild": "^0.28.1"
+    "@babel/core": "^7.24.0",
+    "@babel/preset-env": "^7.24.0",
+    "babel-jest": "^29.7.0",
+    "esbuild": "^0.28.1",
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/**/index.js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "text",
+      "text-summary",
+      "lcov",
+      "html"
+    ],
+    "testMatch": [
+      "<rootDir>/test/**/*.test.js"
+    ],
+    "moduleFileExtensions": [
+      "js",
+      "json"
+    ]
   }
 }

@@ -1,11 +1,4 @@
-/**
- * linalg.js - Linear algebra primitives for quantum computing.
- *
- */
-
-// ---------------------------------------------------------------------------
 // Complex number
-// ---------------------------------------------------------------------------
 export class Complex {
   constructor(real, imag) {
     if (typeof real !== "number") {
@@ -99,9 +92,7 @@ export class Complex {
   toJSON() { return { re: this.re, im: this.im }; }
 }
 
-// ---------------------------------------------------------------------------
 // Complex vector
-// ---------------------------------------------------------------------------
 export class ComplexVector {
   constructor(values) {
     if (Array.isArray(values) && values.length > 0 && values[0] instanceof Complex) {
@@ -221,9 +212,7 @@ export class ComplexVector {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Complex matrix (dense, row-major)
-// ---------------------------------------------------------------------------
 export class ComplexMatrix {
   constructor(rows, cols, data) {
     this.rows = rows;
@@ -290,7 +279,7 @@ export class ComplexMatrix {
 
   // In-place addition (avoids allocating a new matrix for hot paths like
   // Kraus composition and superoperator assembly).
-  add_inplace(other) {
+  addInplace(other) {
     this._checkSameShape(other);
     for (let k = 0; k < this.data.length; k++) {
       this.data[k] = this.data[k].add(other.data[k]);
@@ -663,9 +652,7 @@ export class ComplexMatrix {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function _insertBit(bits, pos, value) {
   const mask = (1 << pos) - 1;

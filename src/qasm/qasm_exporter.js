@@ -1,9 +1,3 @@
-/**
- * qasm_exporter.js - Export a QuantumCircuit to OpenQASM 2.0 source code.
- *
- * */
-
-import { Parameter } from "./../core/parameter.js";
 import { _registerQASMExporterClass } from "./../core/circuit.js";
 
 const PI = Math.PI;
@@ -20,7 +14,6 @@ function _formatNumber(n) {
   if (Math.abs(n - 3 * Math.PI / 2) < 1e-12) return "3*pi/2";
   if (Math.abs(n - 2 * Math.PI) < 1e-12) return "2*pi";
   if (Number.isInteger(n)) return n.toString();
-  // Try fraction with pi
   const piMultiple = n / Math.PI;
   if (Math.abs(piMultiple - Math.round(piMultiple)) < 1e-9) {
     return Math.round(piMultiple) === 1 ? "pi" : `${Math.round(piMultiple)}*pi`;
@@ -28,10 +21,16 @@ function _formatNumber(n) {
   return n.toString();
 }
 
+function _formatParam(p) {
+  if (typeof p === "number") return _formatNumber(p);
+  if (p && typeof p.toString === "function") return p.toString();
+  return String(p);
+}
+
 export class QASMExporter {
   constructor(options = {}) {
     this.includes = options.includes || ["qelib1.inc"];
-    this.basis_gates = options.basis_gates || ["cx", "u3", "u1", "u2"];
+    this.basisGates = options.basisGates || ["cx", "u3", "u1", "u2"];
   }
 
   export(circuit) {
@@ -44,20 +43,20 @@ export class QASMExporter {
     // Register declarations
     const qrName = circuit.qregs.length > 0 ? circuit.qregs[0].name : "q";
     const crName = circuit.cregs.length > 0 ? circuit.cregs[0].name : "c";
-    if (circuit.num_qubits > 0) {
+    if (circuit.numQubits > 0) {
       // Combine all qregs into a single register for export simplicity
-      lines.push(`qreg ${qrName}[${circuit.num_qubits}];`);
+      lines.push(`qreg ${qrName}[${circuit.numQubits}];`);
     }
-    if (circuit.num_clbits > 0) {
-      lines.push(`creg ${crName}[${circuit.num_clbits}];`);
+    if (circuit.numClbits > 0) {
+      lines.push(`creg ${crName}[${circuit.numClbits}];`);
     }
 
     // Helper: get qubit index as `qrName[i]`
-    const qRef = (q) => `${qrName}[${circuit.qubit_indices(q)}]`;
-    const cRef = (c) => `${crName}[${circuit.clbit_indices(c)}]`;
+    const qRef = (q) => `${qrName}[${circuit.qubitIndices(q)}]`;
+    const cRef = (c) => `${crName}[${circuit.clbitIndices(c)}]`;
 
     // Track gate definitions we need to emit
-    const customGates = new Map(); // name -> definition source
+    const customGates = new Map();
 
     // Walk circuit instructions
     for (const ci of circuit.data) {
@@ -87,12 +86,9 @@ export class QASMExporter {
         lines.push(`// delay ${params[0]} ${params[1] || 'dt'} on ${qargs}`);
         continue;
       }
-      if (name === "if_else" || name === "while_loop") {
-        // Emit a comment for control-flow nodes (their condition is
-        // already attached to the individual gated instructions, so we
-        // don't need to emit anything here). Skipping is correct — the
-        // per-instruction `if (...)` is emitted below where the condition
-        // is set.
+      if (name === "if_else" || name === "whileLoop") {
+        // Control-flow nodes are skipped; conditions are
+        // attached to the individual gated instructions below.
         continue;
       }
 
@@ -113,22 +109,18 @@ export class QASMExporter {
       if (name === "u") qasmName = "u3"; // qiskit's U is U3 in QASM 2.0
       if (name === "p") qasmName = "u1"; // phase gate is u1 in QASM 2.0
       if (name === "rx" || name === "ry" || name === "rz" || name === "rxx" || name === "ryy" || name === "rzz" || name === "rzx") {
-        // These aren't in qelib1; emit as custom gate definitions
-        // For simplicity, decompose them: rx(θ) = u3(θ, -π/2, π/2) etc.
-        // Or just emit them as-is and assume the user has them defined.
+        // These aren't in qelib1; emit as custom gate definitions.
       }
 
       // Check if gate is parameterized
       if (params.length > 0) {
         lines.push(`${condPrefix}${qasmName}${paramStr} ${qargs};`);
       } else {
-        // Standard non-parameterized gates
         const stdNames = ["h", "x", "y", "z", "s", "sdg", "t", "tdg", "sx", "id",
                           "cx", "cy", "cz", "ch", "swap", "ccx", "cswap", "iswap", "crx", "cry", "crz"];
         if (stdNames.indexOf(name) !== -1) {
           lines.push(`${condPrefix}${qasmName} ${qargs};`);
         } else {
-          // Unknown gate: emit as-is
           lines.push(`${condPrefix}${qasmName} ${qargs};`);
         }
       }
@@ -138,8 +130,7 @@ export class QASMExporter {
   }
 }
 
-// Convenience function
-export function qasm2_export(circuit, options = {}) {
+export function qasm2Export(circuit, options = {}) {
   const exporter = new QASMExporter(options);
   return exporter.export(circuit);
 }

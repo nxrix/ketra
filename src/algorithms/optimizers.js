@@ -1,12 +1,3 @@
-/**
- * optimizers.js - Classical optimization algorithms.
- *
- * *
- * All optimizers take an objective function f(x) -> number, an initial guess,
- * and a maximum iteration count, and return an OptimizerResult with the best
- * parameters found and the best objective value.
- */
-
 export class OptimizerResult {
   constructor(kwargs = {}) {
     this.x = kwargs.x || [];
@@ -19,14 +10,12 @@ export class OptimizerResult {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Gradient Descent
-// ---------------------------------------------------------------------------
 export class GradientDescent {
   constructor(options = {}) {
-    this.learning_rate = options.learning_rate || 0.01;
+    this.learningRate = options.learningRate || 0.01;
     this.tolerance = options.tolerance || 1e-6;
-    this.max_iter = options.maxiter || 100;
+    this.maxIter = options.maxiter || 100;
   }
 
   minimize(objectiveFn, x0, gradientFn = null) {
@@ -35,7 +24,7 @@ export class GradientDescent {
     let nfev = 1;
     const history = [{ x: x.slice(), fun: fx }];
     let iter = 0;
-    while (iter < this.max_iter) {
+    while (iter < this.maxIter) {
       let grad;
       if (gradientFn) {
         grad = gradientFn(x);
@@ -44,8 +33,7 @@ export class GradientDescent {
         grad = this._numericalGradient(objectiveFn, x);
         nfev += 2 * x.length;
       }
-      // Update
-      const newX = x.map((xi, i) => xi - this.learning_rate * grad[i]);
+      const newX = x.map((xi, i) => xi - this.learningRate * grad[i]);
       const newFx = objectiveFn(newX);
       nfev++;
       history.push({ x: newX.slice(), fun: newFx });
@@ -75,18 +63,16 @@ export class GradientDescent {
   }
 }
 
-// ---------------------------------------------------------------------------
 // SPSA (Simultaneous Perturbation Stochastic Approximation)
-// ---------------------------------------------------------------------------
 export class SPSA {
   constructor(options = {}) {
     this.maxiter = options.maxiter || 100;
-    this.learning_rate = options.learning_rate || null; // a in SPSA
+    this.learningRate = options.learningRate || null; // a in SPSA
     this.perturbation = options.perturbation || null;  // c in SPSA
     this.tolerance = options.tolerance || 1e-6;
     this.seed = options.seed != null ? options.seed : null;
-    this.trust_region = options.trust_region || false;
-    this.max_evals_grouped = options.max_evals_grouped || 1;
+    this.trustRegion = options.trustRegion || false;
+    this.maxEvalsGrouped = options.maxEvalsGrouped || 1;
   }
 
   _makeRng() {
@@ -107,7 +93,7 @@ export class SPSA {
     const rng = this._makeRng();
     const history = [{ x: x.slice(), fun: fx }];
     // Default parameters from SPSA theory
-    const a = this.learning_rate || 0.1;
+    const a = this.learningRate || 0.1;
     const c = this.perturbation || 0.1;
     const A = this.maxiter / 10;
     let bestX = x.slice();
@@ -123,9 +109,7 @@ export class SPSA {
       const fp = objectiveFn(xp);
       const fm = objectiveFn(xm);
       nfev += 2;
-      // Gradient estimate
       const grad = x.map((_, i) => (fp - fm) / (2 * ck * delta[i]));
-      // Update
       const ak = a / Math.pow(k + 1 + A, 0.602);
       const newX = x.map((xi, i) => xi - ak * grad[i]);
       const newFx = objectiveFn(newX);
@@ -150,9 +134,7 @@ export class SPSA {
   }
 }
 
-// ---------------------------------------------------------------------------
 // COBYLA (Constrained Optimization BY Linear Approximation)
-// ---------------------------------------------------------------------------
 // COBYLA builds and maintains a simplex of n+1 points, and at each iteration
 // constructs a linear approximation of the objective function on each simplex
 // face. It then computes the trust-region step that improves the objective

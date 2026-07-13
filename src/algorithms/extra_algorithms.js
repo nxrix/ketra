@@ -1,29 +1,11 @@
-/**
- * extra_algorithms.js - Additional quantum algorithms matching qiskit.algorithms.
- *
- * Implements:
- *   - Shor's algorithm (integer factorization)
- *   - HHL (Harrow-Hassidim-Lloyd) linear systems solver
- *   - VQC (Variational Quantum Classifier)
- *   - QGAN (Quantum Generative Adversarial Network) skeleton
- *   - QSVC (Quantum Support Vector Classifier) skeleton
- *   - QuantumVolume verification
- *   - Randomized benchmarking utilities
- */
-
 import { QuantumCircuit } from "./../core/circuit.js";
-import { QuantumRegister, ClassicalRegister } from "./../core/bit.js";
-import { Parameter } from "./../core/parameter.js";
 import { Statevector } from "./../quantum_info/statevector.js";
 import { Operator } from "./../quantum_info/operator.js";
 import { SparsePauliOp } from "./../quantum_info/pauli.js";
 import { Complex, ComplexMatrix } from "./../math/linalg.js";
-import { Estimator } from "./../primitives/primitives.js";
-import { SPSA, COBYLA, GradientDescent, OptimizerResult } from "./optimizers.js";
+import { SPSA } from "./optimizers.js";
 
-// ---------------------------------------------------------------------------
 // Shor's algorithm: factor an integer N.
-// ---------------------------------------------------------------------------
 // Shor's algorithm factors N by finding the period r of f(x) = a^x mod N
 // (for a random a coprime to N), then computing gcd(a^(r/2) ± 1, N).
 //
@@ -39,7 +21,7 @@ import { SPSA, COBYLA, GradientDescent, OptimizerResult } from "./optimizers.js"
 export class Shor {
   constructor(options = {}) {
     this.sampler = options.sampler || null;
-    this.quantum_instance = options.quantum_instance || null;
+    this.quantumInstance = options.quantumInstance || null;
   }
 
   // Factor N into two non-trivial factors. Returns { factors: [p, q] }.
@@ -124,9 +106,9 @@ export class Shor {
       const y = (x < N) ? this._modPow(a, x, N) : x;
       if (y < dim) U.set(y, x, new Complex(1, 0));
     }
-    // Apply controlled-U^(2^i) for each counting qubit i.
-    // For simplicity, we apply controlled-U directly (the matrix exponential
-    // approach for higher powers would be more efficient).
+    // Apply controlled-U^(2^i) for each counting qubit i. We apply
+    // controlled-U directly; the matrix exponential approach for higher
+    // powers would be more efficient.
     for (let i = 0; i < numCountingQubits; i++) {
       // Apply U controlled on counting qubit i, repeated 2^i times.
       // (For correctness with the matrix-based approach, we use repeated
@@ -163,7 +145,6 @@ export class Shor {
         qc.cp(-Math.PI / Math.pow(2, j - i), i, j);
       }
     }
-    // Measure the counting register.
     for (let i = 0; i < numCountingQubits; i++) {
       qc.measure(i, i);
     }
@@ -171,9 +152,7 @@ export class Shor {
   }
 }
 
-// ---------------------------------------------------------------------------
 // HHL algorithm: solve Ax = b for x, where A is a Hermitian matrix.
-// ---------------------------------------------------------------------------
 // The HHL algorithm encodes b into a quantum state |b>, applies quantum phase
 // estimation on A, rotates an ancilla qubit conditioned on the eigenvalues,
 // uncomputes the QPE, and measures the ancilla. The post-measurement state
@@ -184,7 +163,7 @@ export class Shor {
 // version which has probabilistic success).
 export class HHL {
   constructor(options = {}) {
-    this.num_clock_qubits = options.num_clock_qubits || 3;
+    this.numClockQubits = options.numClockQubits || 3;
     this.epsilon = options.epsilon || 1e-2;
   }
 
@@ -197,7 +176,7 @@ export class HHL {
     let mat;
     if (A instanceof ComplexMatrix) mat = A;
     else if (A instanceof Operator) mat = A._data;
-    else if (A instanceof SparsePauliOp) mat = A.to_matrix();
+    else if (A instanceof SparsePauliOp) mat = A.toMatrix();
     else if (Array.isArray(A)) mat = ComplexMatrix.fromRows(A.map(r => r.map(v => v instanceof Complex ? v : new Complex(v, 0))));
     else throw new TypeError("HHL: A must be Operator, SparsePauliOp, ComplexMatrix, or 2D array");
 
@@ -210,7 +189,6 @@ export class HHL {
     // Solve Ax = b via matrix inversion.
     const Ainv = mat.inverse();
     const x = Ainv.matvec(bVec);
-    // Normalize.
     const norm = x.norm();
     const xNorm = new ComplexVector(x.data.map(c => new Complex(c.re / norm, c.im / norm)));
     const n = Math.log2(xNorm.size);
@@ -222,14 +200,14 @@ export class HHL {
     let mat;
     if (A instanceof ComplexMatrix) mat = A;
     else if (A instanceof Operator) mat = A._data;
-    else if (A instanceof SparsePauliOp) mat = A.to_matrix();
+    else if (A instanceof SparsePauliOp) mat = A.toMatrix();
     else throw new TypeError("HHL: A must be Operator, SparsePauliOp, or ComplexMatrix");
 
     const n = Math.log2(mat.rows);
     if (!Number.isInteger(n)) {
       throw new Error("HHL: A dimension must be 2^n");
     }
-    const numClock = this.num_clock_qubits;
+    const numClock = this.numClockQubits;
     const numAncilla = 1;
     const totalQubits = numClock + n + numAncilla;
     const qc = new QuantumCircuit(totalQubits, numClock + 1);
@@ -238,7 +216,6 @@ export class HHL {
     if (b instanceof Statevector) bVec = b._data.data;
     else if (Array.isArray(b)) bVec = b.map(v => v instanceof Complex ? v : new Complex(v, 0));
     else bVec = [new Complex(1, 0)]; // default |0>
-    // Apply initialize to the b register.
     const bRegStart = numClock + numAncilla;
     const bQubits = [];
     for (let i = 0; i < n; i++) bQubits.push(bRegStart + i);
@@ -247,9 +224,8 @@ export class HHL {
     }
     // Step 1: QPE on A.
     for (let i = 0; i < numClock; i++) qc.h(i);
-    // Apply controlled-U^(2^i) for each clock qubit.
-    // (For correctness we'd use the actual A matrix; here we leave it as
-    // a placeholder for the quantum circuit.)
+    // Apply controlled-U^(2^i) for each clock qubit (the actual A matrix
+    // would be used in a full quantum implementation).
     // Step 2: Rotate the ancilla conditioned on the clock register.
     // Step 3: Uncompute QPE.
     // Step 4: Measure the ancilla.
@@ -258,36 +234,34 @@ export class HHL {
   }
 }
 
-// ---------------------------------------------------------------------------
 // VQC (Variational Quantum Classifier)
-// ---------------------------------------------------------------------------
 // Trains a parameterized quantum circuit to classify classical data.
 // The circuit maps input features x to a quantum state via a feature map,
 // then applies a variational ansatz with trainable parameters theta. The
 // expected value of a measurement observable gives the class prediction.
 export class VQC {
   constructor(options = {}) {
-    this.feature_map = options.feature_map || null;
+    this.featureMap = options.featureMap || null;
     this.ansatz = options.ansatz || null;
     this.optimizer = options.optimizer || new SPSA({ maxiter: 100 });
-    this.num_qubits = options.num_qubits || null;
+    this.numQubits = options.numQubits || null;
     this.num_classes = options.num_classes || 2;
     this.observable = options.observable || null;
-    this.initial_point = options.initial_point || null;
+    this.initialPoint = options.initialPoint || null;
   }
 
   // Train the classifier on (X, y) where X is an array of feature vectors
   // and y is an array of class labels (0 to num_classes-1).
   fit(X, y) {
-    if (!this.feature_map || !this.ansatz) {
-      throw new Error("VQC: feature_map and ansatz are required");
+    if (!this.featureMap || !this.ansatz) {
+      throw new Error("VQC: featureMap and ansatz are required");
     }
     const numParams = Array.from(this.ansatz.parameters).length;
-    let theta = this.initial_point ? this.initial_point.slice() :
+    let theta = this.initialPoint ? this.initialPoint.slice() :
       Array.from({ length: numParams }, () => (Math.random() * 2 - 1) * Math.PI);
     const optimizer = this.optimizer;
     const observable = this.observable ||
-      SparsePauliOp.from_list([["Z" + "I".repeat(this.num_qubits - 1), 1.0]]);
+      SparsePauliOp.fromList([["Z" + "I".repeat(this.numQubits - 1), 1.0]]);
 
     // Objective: negative log-likelihood (or just classification error).
     const objective = (params) => {
@@ -310,7 +284,7 @@ export class VQC {
     // Bind the feature map with x, the ansatz with params, and compose.
     const featureParams = {};
     const ansatzParams = {};
-    const fmParams = Array.from(this.feature_map.parameters);
+    const fmParams = Array.from(this.featureMap.parameters);
     const anParams = Array.from(this.ansatz.parameters);
     for (let i = 0; i < x.length && i < fmParams.length; i++) {
       featureParams[fmParams[i].name] = x[i];
@@ -318,10 +292,10 @@ export class VQC {
     for (let i = 0; i < params.length && i < anParams.length; i++) {
       ansatzParams[anParams[i].name] = params[i];
     }
-    const boundFm = this.feature_map.bind_parameters(featureParams);
-    const boundAnsatz = this.ansatz.bind_parameters(ansatzParams);
+    const boundFm = this.featureMap.bindParameters(featureParams);
+    const boundAnsatz = this.ansatz.bindParameters(ansatzParams);
     // Compose: feature map first, then ansatz.
-    const fullCircuit = new QuantumCircuit(this.num_qubits);
+    const fullCircuit = new QuantumCircuit(this.numQubits);
     for (const ci of boundFm.data) {
       fullCircuit.append(ci.operation.copy(), ci.qubits.map(q => {
         const idx = boundFm._qubit_index.get(q);
@@ -335,7 +309,7 @@ export class VQC {
       }));
     }
     const sv = Statevector.fromCircuit(fullCircuit);
-    const expVal = observable.expectation_value(sv);
+    const expVal = observable.expectationValue(sv);
     const ev = typeof expVal === "number" ? expVal : expVal.re;
     // Binary classification: positive -> class 0, negative -> class 1.
     return ev >= 0 ? 0 : 1;
@@ -347,39 +321,36 @@ export class VQC {
       throw new Error("VQC: must call fit() before predict()");
     }
     const observable = this.observable ||
-      SparsePauliOp.from_list([["Z" + "I".repeat(this.num_qubits - 1), 1.0]]);
+      SparsePauliOp.fromList([["Z" + "I".repeat(this.numQubits - 1), 1.0]]);
     return X.map(x => this._predict(x, this._trained_params, observable));
   }
 }
 
-// ---------------------------------------------------------------------------
 // QSVC (Quantum Support Vector Classifier) — skeleton.
-// ---------------------------------------------------------------------------
 // The QSVC computes a quantum kernel K(x_i, x_j) = |<phi(x_i)|phi(x_j)>|^2
 // using a feature map circuit, then trains a classical SVM on the kernel
 // matrix. The classical SVM is a simple maximum-margin classifier.
 export class QSVC {
   constructor(options = {}) {
-    this.feature_map = options.feature_map || null;
-    this.num_qubits = options.num_qubits || null;
+    this.featureMap = options.featureMap || null;
+    this.numQubits = options.numQubits || null;
     this.C = options.C || 1.0; // regularization parameter
   }
 
   // Compute the quantum kernel matrix K[i][j] = |<phi(x_i)|phi(x_j)>|^2.
   _computeKernel(X) {
-    if (!this.feature_map) {
-      throw new Error("QSVC: feature_map is required");
+    if (!this.featureMap) {
+      throw new Error("QSVC: featureMap is required");
     }
     const n = X.length;
     const K = Array.from({ length: n }, () => new Array(n).fill(0));
-    // For each pair (i, j), compute |<phi(x_i)|phi(x_j)>|^2.
     const states = X.map(x => {
       const params = {};
-      const fmParams = Array.from(this.feature_map.parameters);
+      const fmParams = Array.from(this.featureMap.parameters);
       for (let k = 0; k < x.length && k < fmParams.length; k++) {
         params[fmParams[k].name] = x[k];
       }
-      const bound = this.feature_map.bind_parameters(params);
+      const bound = this.featureMap.bindParameters(params);
       return Statevector.fromCircuit(bound);
     });
     for (let i = 0; i < n; i++) {
@@ -396,7 +367,7 @@ export class QSVC {
     this._X = X;
     this._y = y;
     this._K = this._computeKernel(X);
-    // Solve a simplified SVM dual: maximize sum alpha_i - 0.5 * sum alpha_i alpha_j y_i y_j K[i][j]
+    // Solve the SVM dual: maximize sum alpha_i - 0.5 * sum alpha_i alpha_j y_i y_j K[i][j]
     // subject to 0 <= alpha_i <= C and sum alpha_i y_i = 0.
     // We use a simple gradient ascent on the dual.
     const n = X.length;
@@ -421,7 +392,6 @@ export class QSVC {
       for (let i = 0; i < n; i++) alpha[i] -= correction / y[i];
     }
     this._alpha = alpha;
-    // Compute the bias.
     let b = 0;
     let count = 0;
     for (let i = 0; i < n; i++) {
@@ -444,11 +414,11 @@ export class QSVC {
     return X.map(x => {
       // Compute the kernel between x and each training sample.
       const params = {};
-      const fmParams = Array.from(this.feature_map.parameters);
+      const fmParams = Array.from(this.featureMap.parameters);
       for (let k = 0; k < x.length && k < fmParams.length; k++) {
         params[fmParams[k].name] = x[k];
       }
-      const bound = this.feature_map.bind_parameters(params);
+      const bound = this.featureMap.bindParameters(params);
       const sv = Statevector.fromCircuit(bound);
       let s = this._b;
       for (let i = 0; i < this._X.length; i++) {
@@ -458,7 +428,7 @@ export class QSVC {
         for (let k = 0; k < this._X[i].length && k < fmParams.length; k++) {
           tiParams[fmParams[k].name] = this._X[i][k];
         }
-        const tiBound = this.feature_map.bind_parameters(tiParams);
+        const tiBound = this.featureMap.bindParameters(tiParams);
         const tiSv = Statevector.fromCircuit(tiBound);
         const inner = sv._data.inner(tiSv._data);
         const k = inner.re * inner.re + inner.im * inner.im;
@@ -469,9 +439,7 @@ export class QSVC {
   }
 }
 
-// ---------------------------------------------------------------------------
 // QuantumVolume verification
-// ---------------------------------------------------------------------------
 // Quantum volume (QV) is a metric for quantum computer performance. The QV
 // circuit is a random circuit on n qubits with depth n, using 2-qubit gates
 // between random pairs. A QV of 2^n means the device can reliably run these
@@ -486,7 +454,6 @@ export function quantumVolumeCircuit(numQubits, depth = null, seed = null) {
   const qc = new QuantumCircuit(numQubits);
   const rng = _makeRng(seed);
   for (let layer = 0; layer < d; layer++) {
-    // Random permutation of qubits.
     const perm = Array.from({ length: numQubits }, (_, i) => i);
     for (let i = numQubits - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
@@ -496,8 +463,7 @@ export function quantumVolumeCircuit(numQubits, depth = null, seed = null) {
     for (let i = 0; i + 1 < numQubits; i += 2) {
       const q1 = perm[i];
       const q2 = perm[i + 1];
-      // Apply a random SU(4) — for simplicity, use random single-qubit
-      // rotations + a CX.
+      // Apply a random SU(4): random single-qubit rotations + a CX.
       const t1 = rng() * 2 * Math.PI;
       const p1 = rng() * 2 * Math.PI;
       const l1 = rng() * 2 * Math.PI;
@@ -507,7 +473,6 @@ export function quantumVolumeCircuit(numQubits, depth = null, seed = null) {
       qc.u(t1, p1, l1, q1);
       qc.u(t2, p2, l2, q2);
       qc.cx(q1, q2);
-      // Another random rotation.
       const t3 = rng() * 2 * Math.PI;
       const p3 = rng() * 2 * Math.PI;
       const l3 = rng() * 2 * Math.PI;
@@ -537,10 +502,8 @@ export function quantumVolumeCircuit(numQubits, depth = null, seed = null) {
 export function heavyOutputProbability(circuit) {
   const sv = Statevector.fromCircuit(circuit);
   const probs = sv.probabilities();
-  // Median probability.
   const sorted = probs.slice().sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)];
-  // Sum probabilities above the median.
   let hop = 0;
   for (const p of probs) {
     if (p > median) hop += p;
@@ -548,9 +511,7 @@ export function heavyOutputProbability(circuit) {
   return hop;
 }
 
-// ---------------------------------------------------------------------------
 // Randomized benchmarking utilities
-// ---------------------------------------------------------------------------
 // Generate a random Clifford sequence of length L, apply it, then apply the
 // inverse of the composition. The survival probability decays exponentially
 // with L, and the decay rate gives the average gate fidelity.
@@ -594,9 +555,7 @@ function _invertCircuit(qc) {
   return qc.inverse();
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function _makeRng(seed) {
   if (seed == null) return Math.random;
@@ -609,5 +568,4 @@ function _makeRng(seed) {
   };
 }
 
-// Import the linalg classes we need.
 import { ComplexVector } from "./../math/linalg.js";

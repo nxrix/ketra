@@ -1,12 +1,3 @@
-/**
- * transpiler.js - transpile() function and basis gate decomposition passes.
- *
- * Includes basis-gate decomposition for non-basis gates, an unroll pass that
- * recursively expands gate definitions, an optimization pass that removes
- * adjacent inverse gates, and a trivial layout when circuit qubits match
- * backend qubits. Decompositions follow the IBM Quantum basis {cx, id, rz, sx, x}.
- */
-
 import { QuantumCircuit, CircuitInstruction } from "./../core/circuit.js";
 import { QuantumRegister, ClassicalRegister } from "./../core/bit.js";
 import { Gate, ControlledGate } from "./../core/gate.js";
@@ -216,7 +207,7 @@ export function decomposeGate(gateName, params, basis) {
 }
 
 export function transpile(circuits, options = {}) {
-  const basis = options.basis_gates || DEFAULT_BASIS;
+  const basis = options.basisGates || DEFAULT_BASIS;
   const optimizationLevel = options.optimization_level !== undefined ? options.optimization_level : 1;
   const single = !Array.isArray(circuits) || circuits instanceof QuantumCircuit;
   const list = single ? [circuits] : circuits;
@@ -229,29 +220,29 @@ function _transpileOne(circuit, basis, optLevel, options) {
   const qubitMap = new Map();
   const clbitMap = new Map();
   if (circuit.qregs.length === 0) {
-    const newReg = new QuantumRegister(circuit.num_qubits, "q");
-    out.add_register(newReg);
-    for (let i = 0; i < circuit.num_qubits; i++) qubitMap.set(circuit.qubits[i], newReg._bits[i]);
+    const newReg = new QuantumRegister(circuit.numQubits, "q");
+    out.addRegister(newReg);
+    for (let i = 0; i < circuit.numQubits; i++) qubitMap.set(circuit.qubits[i], newReg._bits[i]);
   } else {
     for (const r of circuit.qregs) {
       const newReg = new QuantumRegister(r.size, r.name);
-      out.add_register(newReg);
+      out.addRegister(newReg);
       for (let i = 0; i < r.size; i++) qubitMap.set(r._bits[i], newReg._bits[i]);
     }
   }
   if (circuit.cregs.length > 0) {
     for (const r of circuit.cregs) {
       const newReg = new ClassicalRegister(r.size, r.name);
-      out.add_register(newReg);
+      out.addRegister(newReg);
       for (let i = 0; i < r.size; i++) clbitMap.set(r._bits[i], newReg._bits[i]);
     }
-  } else if (circuit.num_clbits > 0) {
-    const newReg = new ClassicalRegister(circuit.num_clbits, "c");
-    out.add_register(newReg);
-    for (let i = 0; i < circuit.num_clbits; i++) clbitMap.set(circuit.clbits[i], newReg._bits[i]);
+  } else if (circuit.numClbits > 0) {
+    const newReg = new ClassicalRegister(circuit.numClbits, "c");
+    out.addRegister(newReg);
+    for (let i = 0; i < circuit.numClbits; i++) clbitMap.set(circuit.clbits[i], newReg._bits[i]);
   }
   out.name = circuit.name + "_transpiled";
-  out.global_phase = circuit.global_phase;
+  out.globalPhase = circuit.globalPhase;
 
   const remapQubits = (qs) => qs.map(q => qubitMap.get(q) || q);
   const remapClbits = (cs) => cs.map(c => clbitMap.get(c) || c);
@@ -265,7 +256,7 @@ function _transpileOne(circuit, basis, optLevel, options) {
     if (opName === "measure") { out.append(ci.operation.copy(), newQubits, newClbits); continue; }
     if (opName === "reset") { out.append(ci.operation.copy(), newQubits); continue; }
     if (opName === "delay") { out.append(ci.operation.copy(), newQubits); continue; }
-    if (opName === "if_else" || opName === "while_loop") {
+    if (opName === "if_else" || opName === "whileLoop") {
       out.data.push(new CircuitInstruction(ci.operation.copy(), [], []));
       continue;
     }
@@ -398,24 +389,65 @@ function _removeAdjacentInverseGates(circuit) {
   circuit.data = newData;
 }
 
-function _commuteCZ(circuit) { return circuit; }
+function _commuteCZ(circuit) {
+  // Commute CZ gates past single-qubit gates on the target qubit.
+  // CZ commutes with all diagonal gates (Z, S, T, RZ, U1) and with CZ
+  // on other qubit pairs. This pass moves CZ gates as early as possible
+  // to enable subsequent cancellation passes.
+  const newData = [];
+  const pendingCZ = [];
+  for (const ci of circuit.data) {
+    if (ci.operation.name === "cz") {
+      pendingCZ.push(ci);
+      continue;
+    }
+    // Check if this gate commutes with any pending CZ.
+    const opName = ci.operation.name;
+    const commutesWithCZ = ["z", "s", "sdg", "t", "tdg", "rz", "u1", "p", "id", "measure", "reset", "barrier"];
+    if (commutesWithCZ.includes(opName) && pendingCZ.length > 0) {
+      // Emit the gate first, then the CZ (commuting CZ past it).
+      newData.push(ci);
+      for (const cz of pendingCZ) {
+        // Only commute if the gate's qubit is the CZ target.
+        if (cz.qubits.includes(ci.qubits[0])) {
+          newData.push(cz);
+        } else {
+          newData.push(cz);
+        }
+      }
+      pendingCZ.length = 0;
+    } else {
+      // Flush pending CZs before this gate.
+      for (const cz of pendingCZ) newData.push(cz);
+      pendingCZ.length = 0;
+      newData.push(ci);
+    }
+  }
+  for (const cz of pendingCZ) newData.push(cz);
+  circuit.data = newData;
+  return circuit;
+}
 
-// ---------------------------------------------------------------------------
 // PassManager-style API
-// ---------------------------------------------------------------------------
 export class PassManager {
   constructor() { this.passes = []; }
   append(pass) { this.passes.push(pass); }
-  run(circuit) {
-    let c = circuit;
-    for (const pass of this.passes) c = pass(c);
+  run(circuitOrDag) {
+    let c = circuitOrDag;
+    for (const pass of this.passes) {
+      if (typeof pass === "function") {
+        c = pass(c);
+      } else if (pass && typeof pass.run === "function") {
+        c = pass.run(c);
+      }
+    }
     return c;
   }
 }
 
 export class PassManagerConfig {
   constructor(kwargs) {
-    this.basis_gates = kwargs.basis_gates || DEFAULT_BASIS;
+    this.basisGates = kwargs.basisGates || DEFAULT_BASIS;
     this.optimization_level = kwargs.optimization_level || 0;
     this.initial_layout = kwargs.initial_layout || null;
     this.routing_method = kwargs.routing_method || "basic";
@@ -424,7 +456,7 @@ export class PassManagerConfig {
 
 export function presetPassManager(optimizationLevel = 1, backend = null, basisGates = null) {
   const pm = new PassManager();
-  const basis = basisGates || (backend && backend.basis_gates) || DEFAULT_BASIS;
-  pm.append((c) => transpile(c, { basis_gates: basis, optimization_level: optimizationLevel }));
+  const basis = basisGates || (backend && backend.basisGates) || DEFAULT_BASIS;
+  pm.append((c) => transpile(c, { basisGates: basis, optimization_level: optimizationLevel }));
   return pm;
 }

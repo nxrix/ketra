@@ -1,13 +1,9 @@
-/**
- * visualization.js - Circuit drawing and result/state plotting.
- */
-
 import { _setDrawHook } from "./../core/circuit.js";
 
 const CONTROLLED_2Q = ["cx", "cy", "cz", "ch", "csx", "crx", "cry", "crz", "cp", "cu1", "cu3", "cu"];
 const SYMMETRIC_2Q = ["swap", "iswap", "dcx", "rxx", "ryy", "rzz", "rzx"];
 
-export function draw_circuit(circuit, output = "text", kwargs) {
+export function drawCircuit(circuit, output = "text", kwargs) {
   if (output === "text" || output === "ascii") return _drawText(circuit);
   if (output === "latex") return _drawLatexSource(circuit);
   if (output === "html") return _drawHtml(circuit);
@@ -24,13 +20,11 @@ function _setCell(grid, row, col, char) {
   _touchedCells.add(`${row},${col}`);
 }
 
-// ---------------------------------------------------------------------------
 // Text circuit drawer — matches qiskit's text drawer format exactly
-// ---------------------------------------------------------------------------
 
 function _drawText(circuit) {
-  const nq = circuit.num_qubits;
-  const nc = circuit.num_clbits;
+  const nq = circuit.numQubits;
+  const nc = circuit.numClbits;
   _touchedCells.clear();
 
   // Build instruction list with resolved qubit/clbit indices
@@ -43,7 +37,7 @@ function _drawText(circuit) {
     allInstructions.push({ op: ci.operation, qubits, clbits, idx });
   }
 
-  // ---- DAG LAYER ASSIGNMENT (matches qiskit's _LayerSpooler) ----
+  // DAG LAYER ASSIGNMENT (matches qiskit's _LayerSpooler)
   // Step 1: Compute DAG layers (topological layers via Kahn's algorithm)
   const dagLayers = [];
   const wireBusyUntil = new Map(); // wire -> last layer index
@@ -139,7 +133,7 @@ function _drawText(circuit) {
     }
   }
 
-  // ---- LAYER WIDTH (matches qiskit's normalize_width: MAX of all widths) ----
+  // LAYER WIDTH (matches qiskit's normalize_width: MAX of all widths)
   function _instrWidth(instr) {
     if (instr.op.name === "barrier") return 1;
     if (instr.op.name === "measure") return 3;
@@ -157,7 +151,7 @@ function _drawText(circuit) {
     return maxW === 0 ? 5 : maxW;
   });
 
-  // ---- GRID DRAWING ----
+  // GRID DRAWING
   const nRows = nc > 0 ? 2 * nq + 3 : 2 * nq + 1;
   const labelWidth = _maxLabelWidth(nq, nc);
   const grid = [];
@@ -215,7 +209,7 @@ function _drawText(circuit) {
     while (grid[r].length < targetLen + 1) grid[r].push(" ");
   }
 
-  // ---- BORDER COMPRESSION (matches qiskit's merge_lines + should_compress) ----
+  // BORDER COMPRESSION (matches qiskit's merge_lines + should_compress)
   // Qiskit merges adjacent border rows: └───┘ + ┌───┐ → ├───┤
   // But does NOT compress when ┴ is above ┬/╥ (measurement/control connectors)
   // Also does NOT compress quantum borders (─) with classical wire (═) or vice versa
@@ -389,7 +383,7 @@ function _drawColumn(grid, col, width, nq, nc, colOffset) {
   const boxQubits = new Set();
   const boxLabels = new Map();
   for (const instr of otherInstrs) {
-    if (instr.op.num_qubits === 1 && instr.op.name !== "reset") {
+    if (instr.op.numQubits === 1 && instr.op.name !== "reset") {
       boxQubits.add(instr.qubits[0]);
       boxLabels.set(instr.qubits[0], _gateLabel(instr.op));
     } else if (instr.op.name === "reset") {
@@ -419,7 +413,7 @@ function _drawColumn(grid, col, width, nq, nc, colOffset) {
 
   // Draw multi-qubit gates
   for (const instr of otherInstrs) {
-    if (instr.op.num_qubits >= 2) {
+    if (instr.op.numQubits >= 2) {
       _drawInstruction(grid, instr, width, nq, nc, colOffset);
     }
   }
@@ -454,7 +448,7 @@ function _drawLayer(grid, layer, width, nq, nc, colOffset) {
   const boxQubits = new Set();
   const boxLabels = new Map();
   for (const instr of otherInstrs) {
-    if (instr.op.num_qubits === 1 && instr.op.name !== "reset") {
+    if (instr.op.numQubits === 1 && instr.op.name !== "reset") {
       boxQubits.add(instr.qubits[0]);
       boxLabels.set(instr.qubits[0], _gateLabel(instr.op));
     } else if (instr.op.name === "reset") {
@@ -484,7 +478,7 @@ function _drawLayer(grid, layer, width, nq, nc, colOffset) {
 
   // Draw multi-qubit gates
   for (const instr of otherInstrs) {
-    if (instr.op.num_qubits >= 2) {
+    if (instr.op.numQubits >= 2) {
       _drawInstruction(grid, instr, width, nq, nc, colOffset);
     }
   }
@@ -735,12 +729,12 @@ function _drawInstruction(grid, instr, width, nq, nc, colOffset) {
     return;
   }
 
-  if (op.num_qubits === 1) {
+  if (op.numQubits === 1) {
     _drawBox(grid, instr.qubits[0], _gateLabel(op), width, colOffset);
     return;
   }
 
-  if (op.num_qubits === 2) {
+  if (op.numQubits === 2) {
     if (CONTROLLED_2Q.includes(name)) {
       const targetLabel = _controlledTargetLabel(name, op);
       _drawControlled(grid, instr.qubits[0], instr.qubits[1], targetLabel, width, nq, colOffset, name);
@@ -750,7 +744,7 @@ function _drawInstruction(grid, instr, width, nq, nc, colOffset) {
     return;
   }
 
-  if (op.num_qubits === 3) {
+  if (op.numQubits === 3) {
     if (name === "ccx") {
       _drawControlled(grid, instr.qubits[0], instr.qubits[2], "X", width, nq, colOffset, "x", instr.qubits[1]);
     } else if (name === "cswap") {
@@ -960,13 +954,11 @@ function _fillUntouchedWires(grid, nq, nc, startCol, endCol) {
   }
 }
 
-// ---------------------------------------------------------------------------
 // LaTeX source exporter
-// ---------------------------------------------------------------------------
 
 function _drawLatexSource(circuit) {
-  const nq = circuit.num_qubits;
-  const nc = circuit.num_clbits;
+  const nq = circuit.numQubits;
+  const nc = circuit.numClbits;
   const lines = [];
   lines.push("\\documentclass[border=2pt]{standalone}");
   lines.push("\\usepackage[braket, qm]{qcircuit}");
@@ -987,11 +979,11 @@ function _drawLatexSource(circuit) {
       const ci2 = circuit._clbit_index.get(ci.clbits[0]);
       row[qi] = "\\meter";
       row[nq + ci2] = "\\cw";
-    } else if (ci.operation.num_qubits === 1) {
+    } else if (ci.operation.numQubits === 1) {
       const qi = circuit._qubit_index.get(ci.qubits[0]);
       const p = ci.operation.params.length ? `(${ci.operation.params.map(_fmtParam).join(",")})` : "";
       row[qi] = `\\gate{${name.toUpperCase()}${p}}`;
-    } else if (ci.operation.num_qubits === 2) {
+    } else if (ci.operation.numQubits === 2) {
       const q0 = circuit._qubit_index.get(ci.qubits[0]);
       const q1 = circuit._qubit_index.get(ci.qubits[1]);
       if (CONTROLLED_2Q.includes(name)) {
@@ -1001,7 +993,7 @@ function _drawLatexSource(circuit) {
         row[q0] = `\\gate{${name.toUpperCase()}}`;
         row[q1] = `\\gate{${name.toUpperCase()}}`;
       }
-    } else if (ci.operation.num_qubits === 3) {
+    } else if (ci.operation.numQubits === 3) {
       const q0 = circuit._qubit_index.get(ci.qubits[0]);
       const q1 = circuit._qubit_index.get(ci.qubits[1]);
       const q2 = circuit._qubit_index.get(ci.qubits[2]);
@@ -1016,14 +1008,12 @@ function _drawLatexSource(circuit) {
   return lines.join("\n");
 }
 
-// ---------------------------------------------------------------------------
 // HTML table exporter
-// ---------------------------------------------------------------------------
 
 function _drawHtml(circuit) {
   const rows = [];
-  const nq = circuit.num_qubits;
-  const nc = circuit.num_clbits;
+  const nq = circuit.numQubits;
+  const nc = circuit.numClbits;
   const cols = [];
   for (const ci of circuit.data) {
     const col = new Array(nq + nc).fill("");
@@ -1033,9 +1023,9 @@ function _drawHtml(circuit) {
     } else if (name === "measure") {
       col[circuit._qubit_index.get(ci.qubits[0])] = "M";
       col[nq + circuit._clbit_index.get(ci.clbits[0])] = "\u2190";
-    } else if (ci.operation.num_qubits === 1) {
+    } else if (ci.operation.numQubits === 1) {
       col[circuit._qubit_index.get(ci.qubits[0])] = name.toUpperCase();
-    } else if (ci.operation.num_qubits === 2) {
+    } else if (ci.operation.numQubits === 2) {
       if (CONTROLLED_2Q.includes(name)) {
         col[circuit._qubit_index.get(ci.qubits[0])] = "\u25A0";
         col[circuit._qubit_index.get(ci.qubits[1])] = name.toUpperCase();
@@ -1043,7 +1033,7 @@ function _drawHtml(circuit) {
         col[circuit._qubit_index.get(ci.qubits[0])] = name.toUpperCase();
         col[circuit._qubit_index.get(ci.qubits[1])] = name.toUpperCase();
       }
-    } else if (ci.operation.num_qubits === 3) {
+    } else if (ci.operation.numQubits === 3) {
       col[circuit._qubit_index.get(ci.qubits[0])] = "\u25A0";
       col[circuit._qubit_index.get(ci.qubits[1])] = "\u25A0";
       col[circuit._qubit_index.get(ci.qubits[2])] = name.toUpperCase();
@@ -1065,12 +1055,10 @@ function _drawHtml(circuit) {
   return rows.join("");
 }
 
-// ---------------------------------------------------------------------------
-// Plot placeholders
-// ---------------------------------------------------------------------------
+// Plot functions
 
 export function plot_histogram(data, kwargs = {}) {
-  const counts = data && data.to_dict ? data.to_dict() : data;
+  const counts = data && data.toDict ? data.toDict() : data;
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const normalized = {};
   for (const k in counts) normalized[k] = counts[k] / total;
@@ -1078,7 +1066,7 @@ export function plot_histogram(data, kwargs = {}) {
 }
 
 export function plot_state_city(statevector, kwargs = {}) {
-  const dim = statevector.num_qubits ? (1 << statevector.num_qubits) : statevector.size;
+  const dim = statevector.numQubits ? (1 << statevector.numQubits) : statevector.size;
   const data = statevector.data || statevector;
   const realPart = new Array(dim);
   const imagPart = new Array(dim);
@@ -1096,7 +1084,7 @@ export function plot_state_city(statevector, kwargs = {}) {
       imagPart[i][j] = prod.im;
     }
   }
-  return _makePlaceholder("state_city", { realPart, imagPart, numQubits: statevector.num_qubits, kwargs });
+  return _makePlaceholder("state_city", { realPart, imagPart, numQubits: statevector.numQubits, kwargs });
 }
 
 export function plot_bloch_vector(blochVector, kwargs = {}) {
@@ -1120,4 +1108,4 @@ function _makePlaceholder(kind, data) {
   return { kind, data };
 }
 
-_setDrawHook(draw_circuit);
+_setDrawHook(drawCircuit);

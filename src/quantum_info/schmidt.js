@@ -1,39 +1,29 @@
-/**
- * schmidt.js - Schmidt decomposition of bipartite pure states.
- *
- * *
- * Given a bipartite state |psi>_{AB} with subsystems of dimension d_A and d_B,
- * the Schmidt decomposition is |psi> = sum_k s_k |u_k>_A ⊗ |v_k>_B, where
- * s_k are the Schmidt coefficients (singular values of the reshaped matrix),
- * and |u_k>, |v_k> are orthonormal bases of A and B respectively.
- */
-
-import { Complex, ComplexMatrix, ComplexVector } from "./../math/linalg.js";
+import { ComplexMatrix, ComplexVector } from "./../math/linalg.js";
 import { Statevector } from "./statevector.js";
 
 export class SchmidtDecomposition {
-  constructor(statevector, num_qubits_a = null) {
+  constructor(statevector, numQubitsA = null) {
     let nA;
-    if (num_qubits_a !== null) {
-      nA = num_qubits_a;
+    if (numQubitsA !== null) {
+      nA = numQubitsA;
     } else {
       // Default: split evenly
-      nA = Math.floor(statevector.num_qubits / 2);
+      nA = Math.floor(statevector.numQubits / 2);
     }
-    this.num_qubits_a = nA;
-    this.num_qubits_b = statevector.num_qubits - nA;
-    this.dim_a = 1 << nA;
-    this.dim_b = 1 << this.num_qubits_b;
+    this.numQubitsA = nA;
+    this.numQubitsB = statevector.numQubits - nA;
+    this.dimA = 1 << nA;
+    this.dimB = 1 << this.numQubitsB;
 
     // Reshape statevector into a d_A × d_B matrix where row[i] = amplitude
     // of A being in state |i>, column[j] = amplitude of B being in state |j>.
     //
-    // Index in the original statevector: i * dim_b + j (A is MSB).
-    const m = ComplexMatrix.zeros(this.dim_a, this.dim_b);
-    for (let i = 0; i < this.dim_a; i++) {
-      for (let j = 0; j < this.dim_b; j++) {
+    // Index in the original statevector: i * dimB + j (A is MSB).
+    const m = ComplexMatrix.zeros(this.dimA, this.dimB);
+    for (let i = 0; i < this.dimA; i++) {
+      for (let j = 0; j < this.dimB; j++) {
         // Statevector is indexed by integer whose bit pattern is (A_bits << nB) | B_bits
-        const idx = (i << this.num_qubits_b) | j;
+        const idx = (i << this.numQubitsB) | j;
         m.set(i, j, statevector.data.get(idx));
       }
     }
@@ -45,34 +35,34 @@ export class SchmidtDecomposition {
     this._statevector = statevector;
 
     // Schmidt rank = number of nonzero singular values
-    this.schmidt_rank = S.filter(s => s > 1e-12).length;
+    this.schmidtRank = S.filter(s => s > 1e-12).length;
   }
 
   // Get the Schmidt coefficients
   schmidt_coefficients() {
-    return this.S.slice(0, this.schmidt_rank);
+    return this.S.slice(0, this.schmidtRank);
   }
 
   // Get the k-th Schmidt state of subsystem A
   schmidt_state_a(k) {
-    if (k >= this.schmidt_rank) return null;
-    const data = new Array(this.dim_a);
-    for (let i = 0; i < this.dim_a; i++) {
+    if (k >= this.schmidtRank) return null;
+    const data = new Array(this.dimA);
+    for (let i = 0; i < this.dimA; i++) {
       data[i] = this.U.get(i, k);
     }
-    return new Statevector(new ComplexVector(data), this.num_qubits_a);
+    return new Statevector(new ComplexVector(data), this.numQubitsA);
   }
 
   // Get the k-th Schmidt state of subsystem B
   schmidt_state_b(k) {
-    if (k >= this.schmidt_rank) return null;
+    if (k >= this.schmidtRank) return null;
     // Vh row k = conjugate of v_k
-    const data = new Array(this.dim_b);
-    for (let j = 0; j < this.dim_b; j++) {
+    const data = new Array(this.dimB);
+    for (let j = 0; j < this.dimB; j++) {
       // Vh[k, j] = conj(V[j, k])
       data[j] = this.Vh.get(k, j).conjugate();
     }
-    return new Statevector(new ComplexVector(data), this.num_qubits_b);
+    return new Statevector(new ComplexVector(data), this.numQubitsB);
   }
 
   // Entanglement entropy (von Neumann) = -sum p_k log2(p_k)
@@ -88,21 +78,21 @@ export class SchmidtDecomposition {
   }
 
   // Schmidt number (rank)
-  rank() { return this.schmidt_rank; }
+  rank() { return this.schmidtRank; }
 
-  // Check if the state is entangled (schmidt_rank > 1)
-  is_entangled(tol = 1e-9) {
-    return this.schmidt_rank > 1 ||
-           (this.schmidt_rank === 1 && Math.abs(this.S[0] - 1) > tol);
+  // Check if the state is entangled (schmidtRank > 1)
+  isEntangled(tol = 1e-9) {
+    return this.schmidtRank > 1 ||
+           (this.schmidtRank === 1 && Math.abs(this.S[0] - 1) > tol);
   }
 
   // Reconstruct the original statevector from the decomposition
-  to_statevector() {
+  toStatevector() {
     return this._statevector;
   }
 
   toString() {
     const coeffs = this.schmidt_coefficients();
-    return `SchmidtDecomposition(rank=${this.schmidt_rank}, entropy=${this.entropy().toFixed(4)}, coeffs=[${coeffs.map(c => c.toFixed(4)).join(", ")}])`;
+    return `SchmidtDecomposition(rank=${this.schmidtRank}, entropy=${this.entropy().toFixed(4)}, coeffs=[${coeffs.map(c => c.toFixed(4)).join(", ")}])`;
   }
 }

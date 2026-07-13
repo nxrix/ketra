@@ -1,25 +1,12 @@
-/**
- * opflow.js - Operator flow algebra (deprecated qiskit.opflow).
- *
- * Operator flow algebra: OperatorBase, PauliOp, PauliSumOp, MatrixOp,
- * CircuitOp, StateFn, CircuitStateFn, ListOp, EvolvedOp.
- *
- * This is qiskit's older high-level algebra system. While deprecated in
- * favor of qiskit.quantum_info + primitives, it's still widely used in
- * existing code.
- */
-
 import { Complex, ComplexMatrix, ComplexVector } from "./../math/linalg.js";
-import { Pauli, PauliList, SparsePauliOp } from "./../quantum_info/pauli.js";
+import { Pauli, SparsePauliOp } from "./../quantum_info/pauli.js";
 import { Operator } from "./../quantum_info/operator.js";
 import { Statevector } from "./../quantum_info/statevector.js";
 
-// ---------------------------------------------------------------------------
 // OperatorBase
-// ---------------------------------------------------------------------------
 export class OperatorBase {
   constructor() {
-    this.num_qubits = 0;
+    this.numQubits = 0;
     this.coeff = Complex.ONE;
   }
 
@@ -38,34 +25,32 @@ export class OperatorBase {
   }
   adjoint() { return new ListOp([this], "adjoint"); }
 
-  to_matrix() { throw new Error("OperatorBase.to_matrix not implemented"); }
-  to_matrix_op() { return new MatrixOp(this.to_matrix()); }
+  toMatrix() { throw new Error("OperatorBase.toMatrix not implemented"); }
+  to_matrix_op() { return new MatrixOp(this.toMatrix()); }
   to_spmatrix_op() {
-    return new PauliSumOp(SparsePauliOp.from_operator(new Operator(this.to_matrix())));
+    return new PauliSumOp(SparsePauliOp.fromOperator(new Operator(this.toMatrix())));
   }
 
   // Apply to a state
-  apply_to(state) {
-    const m = this.to_matrix();
+  applyTo(state) {
+    const m = this.toMatrix();
     return m.matvec(state.data || state);
   }
 
-  is_hermitian() { return this.to_matrix().isHermitian(); }
+  isHermitian() { return this.toMatrix().isHermitian(); }
 }
 
-// ---------------------------------------------------------------------------
 // PauliOp: A single Pauli operator
-// ---------------------------------------------------------------------------
 export class PauliOp extends OperatorBase {
   constructor(pauli, coeff = Complex.ONE) {
     super();
     this.primitive = pauli instanceof Pauli ? pauli : new Pauli(pauli);
     this.coeff = coeff instanceof Complex ? coeff : new Complex(coeff, 0);
-    this.num_qubits = this.primitive.num_qubits;
+    this.numQubits = this.primitive.numQubits;
   }
 
-  to_matrix() {
-    return this.primitive.to_matrix().scale(this.coeff);
+  toMatrix() {
+    return this.primitive.toMatrix().scale(this.coeff);
   }
 
   adjoint() {
@@ -73,38 +58,36 @@ export class PauliOp extends OperatorBase {
     return new PauliOp(this.primitive, this.coeff.conjugate());
   }
 
-  is_hermitian() {
+  isHermitian() {
     return Math.abs(this.coeff.im) < 1e-9;
   }
 
   toString() { return `${this.coeff.toString()} * ${this.primitive.label}`; }
 }
 
-// ---------------------------------------------------------------------------
 // PauliSumOp: Sum of Pauli operators (wraps SparsePauliOp)
-// ---------------------------------------------------------------------------
 export class PauliSumOp extends OperatorBase {
   constructor(spmatrixop, coeff = Complex.ONE) {
     super();
-    this.primitive = spmatrixop instanceof SparsePauliOp ? spmatrixop : SparsePauliOp.from_list(spmatrixop);
+    this.primitive = spmatrixop instanceof SparsePauliOp ? spmatrixop : SparsePauliOp.fromList(spmatrixop);
     this.coeff = coeff instanceof Complex ? coeff : new Complex(coeff, 0);
-    this.num_qubits = this.primitive.num_qubits;
+    this.numQubits = this.primitive.numQubits;
   }
 
-  static from_list(list) {
-    return new PauliSumOp(SparsePauliOp.from_list(list));
+  static fromList(list) {
+    return new PauliSumOp(SparsePauliOp.fromList(list));
   }
 
-  to_matrix() {
-    return this.primitive.to_matrix().scale(this.coeff);
+  toMatrix() {
+    return this.primitive.toMatrix().scale(this.coeff);
   }
 
   adjoint() {
     return new PauliSumOp(this.primitive.adjoint(), this.coeff.conjugate());
   }
 
-  is_hermitian() {
-    return this.to_matrix().isHermitian();
+  isHermitian() {
+    return this.toMatrix().isHermitian();
   }
 
   // Reduce: combine like terms
@@ -113,14 +96,12 @@ export class PauliSumOp extends OperatorBase {
   }
 
   // Convert to a list of [Pauli, coeff] pairs
-  to_list() { return this.primitive.to_list(); }
+  toList() { return this.primitive.toList(); }
 
   toString() { return this.primitive.toString(); }
 }
 
-// ---------------------------------------------------------------------------
 // MatrixOp: An operator backed by a dense matrix
-// ---------------------------------------------------------------------------
 export class MatrixOp extends OperatorBase {
   constructor(matrix, coeff = Complex.ONE) {
     super();
@@ -133,10 +114,10 @@ export class MatrixOp extends OperatorBase {
     }
     this.coeff = coeff instanceof Complex ? coeff : new Complex(coeff, 0);
     const n = Math.log2(this.primitive.rows);
-    this.num_qubits = n;
+    this.numQubits = n;
   }
 
-  to_matrix() {
+  toMatrix() {
     return this.primitive.scale(this.coeff);
   }
 
@@ -144,30 +125,28 @@ export class MatrixOp extends OperatorBase {
     return new MatrixOp(this.primitive.dagger(), this.coeff.conjugate());
   }
 
-  is_hermitian() {
-    return this.to_matrix().isHermitian();
+  isHermitian() {
+    return this.toMatrix().isHermitian();
   }
 
-  toString() { return `MatrixOp(num_qubits=${this.num_qubits})`; }
+  toString() { return `MatrixOp(numQubits=${this.numQubits})`; }
 }
 
-// ---------------------------------------------------------------------------
 // CircuitOp: An operator backed by a QuantumCircuit
-// ---------------------------------------------------------------------------
 export class CircuitOp extends OperatorBase {
   constructor(circuit, coeff = Complex.ONE) {
     super();
     this.primitive = circuit;
     this.coeff = coeff instanceof Complex ? coeff : new Complex(coeff, 0);
-    this.num_qubits = circuit.num_qubits;
+    this.numQubits = circuit.numQubits;
   }
 
-  to_matrix() {
+  toMatrix() {
     const op = Operator.fromCircuit(this.primitive);
     return op.data.scale(this.coeff);
   }
 
-  to_circuit() { return this.primitive; }
+  toCircuit() { return this.primitive; }
 
   adjoint() {
     return new CircuitOp(this.primitive.inverse(), this.coeff.conjugate());
@@ -176,11 +155,9 @@ export class CircuitOp extends OperatorBase {
   toString() { return `CircuitOp(${this.primitive.name})`; }
 }
 
-// ---------------------------------------------------------------------------
 // StateFn: A state functional (linear functional <psi| or vector |psi>)
-// ---------------------------------------------------------------------------
 export class StateFn extends OperatorBase {
-  constructor(primitive, is_measurement = false, coeff = Complex.ONE) {
+  constructor(primitive, isMeasurement = false, coeff = Complex.ONE) {
     super();
     if (primitive instanceof Statevector) {
       this.primitive = primitive;
@@ -191,18 +168,18 @@ export class StateFn extends OperatorBase {
     } else {
       this.primitive = primitive;
     }
-    this.is_measurement = is_measurement;
+    this.isMeasurement = isMeasurement;
     this.coeff = coeff instanceof Complex ? coeff : new Complex(coeff, 0);
-    this.num_qubits = this.primitive.num_qubits;
+    this.numQubits = this.primitive.numQubits;
   }
 
-  static from_label(label, is_measurement = false) {
-    return new StateFn(Statevector.fromLabel(label), is_measurement);
+  static fromLabel(label, isMeasurement = false) {
+    return new StateFn(Statevector.fromLabel(label), isMeasurement);
   }
 
-  to_matrix() {
+  toMatrix() {
     // If measurement: <psi| (row vector), else |psi> (column vector)
-    if (this.is_measurement) {
+    if (this.isMeasurement) {
       // Row vector = conjugate transpose of statevector
       const dim = this.primitive.dim;
       const m = ComplexMatrix.zeros(1, dim);
@@ -221,58 +198,54 @@ export class StateFn extends OperatorBase {
   }
 
   adjoint() {
-    return new StateFn(this.primitive, !this.is_measurement, this.coeff.conjugate());
+    return new StateFn(this.primitive, !this.isMeasurement, this.coeff.conjugate());
   }
 
   // Apply an operator to the state
   compose(other) {
     if (other instanceof OperatorBase) {
       // |ψ> = O|ψ>
-      const newState = this.primitive.evolve(other.to_matrix());
-      return new StateFn(newState, this.is_measurement, this.coeff);
+      const newState = this.primitive.evolve(other.toMatrix());
+      return new StateFn(newState, this.isMeasurement, this.coeff);
     }
     return super.compose(other);
   }
 
   toString() {
-    const prefix = this.is_measurement ? "~" : "";
+    const prefix = this.isMeasurement ? "~" : "";
     return `${prefix}StateFn(${this.primitive.toString()})`;
   }
 }
 
-// ---------------------------------------------------------------------------
 // CircuitStateFn: A state prepared by a circuit
-// ---------------------------------------------------------------------------
 export class CircuitStateFn extends StateFn {
-  constructor(circuit, is_measurement = false, coeff = Complex.ONE) {
+  constructor(circuit, isMeasurement = false, coeff = Complex.ONE) {
     const sv = Statevector.fromCircuit(circuit);
-    super(sv, is_measurement, coeff);
+    super(sv, isMeasurement, coeff);
     this.circuit = circuit;
   }
 
-  to_circuit() { return this.circuit; }
+  toCircuit() { return this.circuit; }
 
   toString() { return `CircuitStateFn(${this.circuit.name})`; }
 }
 
-// ---------------------------------------------------------------------------
 // ListOp: A list of OperatorBase with a combining operation
-// ---------------------------------------------------------------------------
 export class ListOp extends OperatorBase {
   constructor(oplist, comboFn = "add", auxFields = {}) {
     super();
     this.oplist = oplist;
-    this.combo_fn = comboFn;
-    this.aux_fields = auxFields;
-    if (oplist.length > 0) this.num_qubits = oplist[0].num_qubits;
+    this.comboFn = comboFn;
+    this.auxFields = auxFields;
+    if (oplist.length > 0) this.numQubits = oplist[0].numQubits;
     this.coeff = auxFields.coeff || Complex.ONE;
   }
 
-  to_matrix() {
+  toMatrix() {
     if (this.oplist.length === 0) return ComplexMatrix.identity(1);
-    const matrices = this.oplist.map(op => op.to_matrix());
+    const matrices = this.oplist.map(op => op.toMatrix());
     let result;
-    switch (this.combo_fn) {
+    switch (this.comboFn) {
       case "add":
         result = matrices[0];
         for (let i = 1; i < matrices.length; i++) result = result.add(matrices[i]);
@@ -289,15 +262,15 @@ export class ListOp extends OperatorBase {
         result = matrices[0].dagger();
         break;
       case "scale":
-        result = matrices[0].scale(this.aux_fields.coeff || Complex.ONE);
+        result = matrices[0].scale(this.auxFields.coeff || Complex.ONE);
         break;
       case "pow":
         result = matrices[0];
-        const n = this.aux_fields.exponent || 1;
+        const n = this.auxFields.exponent || 1;
         for (let i = 1; i < n; i++) result = result.mul(matrices[0]);
         break;
       default:
-        throw new Error(`ListOp: unknown combo function ${this.combo_fn}`);
+        throw new Error(`ListOp: unknown combo function ${this.comboFn}`);
     }
     return result.scale(this.coeff);
   }
@@ -305,38 +278,36 @@ export class ListOp extends OperatorBase {
   adjoint() {
     return new ListOp(
       this.oplist.map(op => op.adjoint()),
-      this.combo_fn,
-      Object.assign({}, this.aux_fields, { coeff: this.coeff.conjugate() })
+      this.comboFn,
+      Object.assign({}, this.auxFields, { coeff: this.coeff.conjugate() })
     );
   }
 
   // Reduce: recursively simplify children
   reduce() {
     const reduced = this.oplist.map(op => op.reduce ? op.reduce() : op);
-    return new ListOp(reduced, this.combo_fn, this.aux_fields);
+    return new ListOp(reduced, this.comboFn, this.auxFields);
   }
 
   toString() {
-    const opStr = this.oplist.map(op => op.toString()).join(` ${this.combo_fn} `);
+    const opStr = this.oplist.map(op => op.toString()).join(` ${this.comboFn} `);
     return `(${opStr})`;
   }
 }
 
-// ---------------------------------------------------------------------------
 // EvolvedOp: e^{-i t O} for an operator O (time evolution)
-// ---------------------------------------------------------------------------
 export class EvolvedOp extends OperatorBase {
   constructor(primitive, coeff = Complex.ONE, time = 1.0) {
     super();
     this.primitive = primitive;
     this.coeff = coeff instanceof Complex ? coeff : new Complex(coeff, 0);
     this.time = time;
-    this.num_qubits = primitive.num_qubits;
+    this.numQubits = primitive.numQubits;
   }
 
-  to_matrix() {
+  toMatrix() {
     // e^{-i t O} = expm(-i t O)
-    const O = this.primitive.to_matrix();
+    const O = this.primitive.toMatrix();
     const expMatrix = O.scale(new Complex(0, -this.time));
     return expMatrix.expm().scale(this.coeff);
   }

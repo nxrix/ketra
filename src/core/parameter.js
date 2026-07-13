@@ -1,10 +1,3 @@
-/**
- * parameter.js - Parameter and ParameterExpression for parameterized circuits.
- *
- * Symbolic placeholders for circuits that need to be bound to numeric values
- * before simulation (e.g. VQE / QAOA ansaetze).
- */
-
 let _paramCounter = 0;
 
 export class Parameter {

@@ -1,18 +1,3 @@
-/**
- * dagcircuit.js - DAGCircuit representation of a quantum circuit.
- *
- * DAG circuit representation: DAGCircuit, DAGNode, DAGOpNode, DAGInNode,
- * DAGOutNode. A DAGCircuit represents a circuit as a directed acyclic graph
- * where:
- *   - Input nodes represent uninitialized qubits/clbits
- *   - Output nodes represent final qubit/clbit states
- *   - Operation nodes represent gates applied to qubits/clbits
- *   - Edges represent data flow (qubit/clbit values)
- *
- * This is the data structure used by the transpiler for analysis and
- * transformation passes.
- */
-
 import { QuantumRegister, ClassicalRegister, Qubit, Clbit } from "./../core/bit.js";
 import { CircuitInstruction } from "./../core/circuit.js";
 
@@ -92,7 +77,7 @@ export class DAGCircuit {
     this._multi_graph = new Map(); // node -> { successors: Set, predecessors: Set }
     this._wire_to_in_edges = new Map();
     this._wire_to_out_edges = new Map();
-    this.global_phase = 0;
+    this.globalPhase = 0;
     this.name = "dag";
     this.metadata = null;
     this.calibrations = [];
@@ -100,9 +85,9 @@ export class DAGCircuit {
     this.unit = "dt";
   }
 
-  add_qreg(register) {
+  addQreg(register) {
     if (!(register instanceof QuantumRegister)) {
-      throw new TypeError("add_qreg requires a QuantumRegister");
+      throw new TypeError("addQreg requires a QuantumRegister");
     }
     if (this.qregs.has(register.name)) {
       throw new Error(`Quantum register ${register.name} already exists`);
@@ -123,9 +108,9 @@ export class DAGCircuit {
     return dagReg;
   }
 
-  add_creg(register) {
+  addCreg(register) {
     if (!(register instanceof ClassicalRegister)) {
-      throw new TypeError("add_creg requires a ClassicalRegister");
+      throw new TypeError("addCreg requires a ClassicalRegister");
     }
     if (this.cregs.has(register.name)) {
       throw new Error(`Classical register ${register.name} already exists`);
@@ -146,11 +131,11 @@ export class DAGCircuit {
     return dagReg;
   }
 
-  get num_qubits() { return this.qubits.length; }
-  get num_clbits() { return this.clbits.length; }
+  get numQubits() { return this.qubits.length; }
+  get numClbits() { return this.clbits.length; }
 
   // Apply an operation to qubits and clbits
-  apply_operation(op, qargs = [], cargs = []) {
+  applyOperation(op, qargs = [], cargs = []) {
     if (!Array.isArray(qargs)) qargs = [qargs];
     if (!Array.isArray(cargs)) cargs = [cargs];
     const node = new DAGOpNode(op, qargs, cargs);
@@ -192,7 +177,7 @@ export class DAGCircuit {
   }
 
   // Topologically iterate over operation nodes
-  topological_op_nodes() {
+  topologicalOpNodes() {
     // Kahn's algorithm
     const inDegree = new Map();
     const queue = [];
@@ -225,12 +210,12 @@ export class DAGCircuit {
   }
 
   // Get all nodes (input, output, ops)
-  all_nodes() {
+  allNodes() {
     return Array.from(this._multi_graph.keys());
   }
 
   // Count operations by name
-  count_ops() {
+  countOps() {
     const counts = {};
     for (const node of this.op_nodes()) {
       counts[node.op.name] = (counts[node.op.name] || 0) + 1;
@@ -240,7 +225,7 @@ export class DAGCircuit {
 
   // Depth (longest path through op nodes)
   depth() {
-    const opNodes = this.topological_op_nodes();
+    const opNodes = this.topologicalOpNodes();
     const longestPath = new Map();
     for (const node of opNodes) {
       let maxPred = 0;
@@ -259,7 +244,7 @@ export class DAGCircuit {
   }
 
   // Get edges on a wire
-  edges_on_wire(wire) {
+  edgesOnWire(wire) {
     const result = [];
     const inEdges = this._wire_to_in_edges.get(wire);
     if (!inEdges) return result;
@@ -272,8 +257,7 @@ export class DAGCircuit {
       let next = null;
       for (const succ of links.successors) {
         // Check if this successor eventually reaches outNode
-        // For simplicity, take the only successor on this wire
-        if (succ.wires.includes(wire) || succ === outNode) {
+                if (succ.wires.includes(wire) || succ === outNode) {
           next = succ;
           break;
         }
@@ -286,8 +270,8 @@ export class DAGCircuit {
   }
 
   // Remove an operation node
-  remove_op_node(node) {
-    if (!node.is_op_node()) throw new Error("remove_op_node requires an op node");
+  removeOpNode(node) {
+    if (!node.is_op_node()) throw new Error("removeOpNode requires an op node");
     // Reconnect predecessors to successors
     const links = this._multi_graph.get(node);
     const preds = Array.from(links.predecessors);
@@ -315,8 +299,8 @@ export class DAGCircuit {
   }
 
   // Substitute one node with another (preserves edges)
-  substitute_node(old_node, new_node) {
-    if (!old_node.is_op_node()) throw new Error("substitute_node: old must be op node");
+  substituteNode(old_node, new_node) {
+    if (!old_node.is_op_node()) throw new Error("substituteNode: old must be op node");
     const links = this._multi_graph.get(old_node);
     this._multi_graph.set(new_node, {
       successors: new Set(links.successors),
@@ -338,9 +322,9 @@ export class DAGCircuit {
   }
 
   // Replace a node with a subcircuit (DAGCircuit)
-  substitute_node_with_dag(node, sub_dag, wires_map = null) {
+  substituteNodeWithDag(node, sub_dag, wires_map = null) {
     // wires_map: { old_wire: new_wire } for the sub-DAG's wires
-    if (!node.is_op_node()) throw new Error("substitute_node_with_dag: old must be op node");
+    if (!node.is_op_node()) throw new Error("substituteNodeWithDag: old must be op node");
     // Map sub-DAG wires to this DAG's wires
     const subQubits = sub_dag.qubits;
     const subClbits = sub_dag.clbits;
@@ -372,7 +356,7 @@ export class DAGCircuit {
     this._multi_graph.delete(node);
     // Apply sub-DAG ops
     let lastNodeOnWire = new Map(wirePred);
-    for (const opNode of sub_dag.topological_op_nodes()) {
+    for (const opNode of sub_dag.topologicalOpNodes()) {
       const mappedQargs = opNode.qargs.map(q => defaultMap.get(q) || q);
       const mappedCargs = opNode.cargs.map(c => defaultMap.get(c) || c);
       const newNode = new DAGOpNode(opNode.op, mappedQargs, mappedCargs);
@@ -416,24 +400,24 @@ export class DAGCircuit {
   copy() {
     const newDag = new DAGCircuit();
     for (const [name, reg] of this.qregs.entries()) {
-      newDag.add_qreg(new QuantumRegister(reg.bits.length, name));
+      newDag.addQreg(new QuantumRegister(reg.bits.length, name));
     }
     for (const [name, reg] of this.cregs.entries()) {
-      newDag.add_creg(new ClassicalRegister(reg.bits.length, name));
+      newDag.addCreg(new ClassicalRegister(reg.bits.length, name));
     }
     newDag.name = this.name;
-    newDag.global_phase = this.global_phase;
+    newDag.globalPhase = this.globalPhase;
     newDag.metadata = this.metadata;
     // Copy op nodes in topological order
-    for (const node of this.topological_op_nodes()) {
-      newDag.apply_operation(node.op.copy(), node.qargs.slice(), node.cargs.slice());
+    for (const node of this.topologicalOpNodes()) {
+      newDag.applyOperation(node.op.copy(), node.qargs.slice(), node.cargs.slice());
     }
     return newDag;
   }
 
   // Convert DAG to a list of CircuitInstructions (in topological order)
-  to_instructions() {
-    return this.topological_op_nodes().map(node => new CircuitInstruction(
+  toInstructions() {
+    return this.topologicalOpNodes().map(node => new CircuitInstruction(
       node.op.copy(),
       node.qargs.slice(),
       node.cargs.slice()

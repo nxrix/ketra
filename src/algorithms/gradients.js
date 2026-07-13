@@ -1,19 +1,8 @@
-/**
- * gradients.js - Quantum gradient calculators.
- *
- * Quantum gradient calculators: ParamShift, FiniteDiff,
- * LinearCombination (for SparsePauliOp observables).
- *
- * Gradients are used by VQE and QAOA to compute dE/dθ where E = <ψ(θ)|O|ψ(θ)>.
- */
-
 import { Statevector } from "../quantum_info/statevector.js";
 import { SparsePauliOp } from "../quantum_info/pauli.js";
 import { Complex, ComplexVector } from "../math/linalg.js";
 
-// ---------------------------------------------------------------------------
 // Base Gradient class
-// ---------------------------------------------------------------------------
 export class GradientBase {
   constructor() {}
 
@@ -26,15 +15,12 @@ export class GradientBase {
     throw new Error("compute not implemented");
   }
 
-  // Get the list of parameters from a circuit
   _getParamNames(circuit) {
     return Array.from(circuit.parameters).map(p => p.name);
   }
 }
 
-// ---------------------------------------------------------------------------
 // Parameter Shift gradient
-// ---------------------------------------------------------------------------
 // For gates of the form e^{-i θ P} where P is a Pauli operator,
 // the gradient is: df/dθ = [f(θ + π/2) - f(θ - π/2)] / 2
 //
@@ -65,16 +51,14 @@ export class ParamShift extends GradientBase {
   }
 
   _computeExpectation(circuit, observable, parameterValues) {
-    const bound = circuit.bind_parameters(parameterValues);
+    const bound = circuit.bindParameters(parameterValues);
     const sv = Statevector.fromCircuit(bound);
-    const expVal = observable.expectation_value(sv);
+    const expVal = observable.expectationValue(sv);
     return typeof expVal === "number" ? expVal : expVal.re;
   }
 }
 
-// ---------------------------------------------------------------------------
 // Finite Difference gradient
-// ---------------------------------------------------------------------------
 // df/dθ ≈ [f(θ + ε) - f(θ - ε)] / (2ε)
 export class FiniteDiff extends GradientBase {
   constructor(epsilon = 1e-4) {
@@ -103,23 +87,21 @@ export class FiniteDiff extends GradientBase {
   }
 
   _computeExpectation(circuit, observable, parameterValues) {
-    const bound = circuit.bind_parameters(parameterValues);
+    const bound = circuit.bindParameters(parameterValues);
     const sv = Statevector.fromCircuit(bound);
-    const expVal = observable.expectation_value(sv);
+    const expVal = observable.expectationValue(sv);
     return typeof expVal === "number" ? expVal : expVal.re;
   }
 }
 
-// ---------------------------------------------------------------------------
 // Linear Combination gradient (for SparsePauliOp observables)
-// ---------------------------------------------------------------------------
 // The linear-combination-of-unitaries (LCU) approach computes the analytic
 // gradient of <ψ(θ)|O|ψ(θ)> by expressing each parameterized gate's
 // derivative as a linear combination of unitaries. For a gate G(θ) =
 // exp(-i θ P/2), we have dG/dθ = -i P G / 2 = (G(θ + π/2) - G(θ - π/2)) / 2,
 // which gives the standard parameter-shift rule. For general parameterized
-// gates, we fall back to a generalized parameter shift with the appropriate
-// shift angles.
+// gates, a generalized parameter shift with the appropriate shift angles
+// is used.
 //
 // In practice, for a Pauli-evolution gate (RX, RY, RZ, RXX, RYY, RZZ,
 // PauliEvolution), the analytic gradient is exactly the parameter shift
@@ -149,9 +131,7 @@ export class LinearCombination extends GradientBase {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Natural gradient (Fubini-Study metric)
-// ---------------------------------------------------------------------------
 // The natural gradient is grad' = g^{-1} · grad, where g is the quantum
 // Fisher information (Fubini-Study) metric tensor. For a state
 // |ψ(θ)> = U(θ)|0>, the metric is:
@@ -188,11 +168,11 @@ export class NaturalGradient extends GradientBase {
       plus[name] += Math.PI / 2;
       const minus = Object.assign({}, parameterValues);
       minus[name] -= Math.PI / 2;
-      psiPlus[i] = Statevector.fromCircuit(circuit.bind_parameters(plus));
-      psiMinus[i] = Statevector.fromCircuit(circuit.bind_parameters(minus));
+      psiPlus[i] = Statevector.fromCircuit(circuit.bindParameters(plus));
+      psiMinus[i] = Statevector.fromCircuit(circuit.bindParameters(minus));
     }
     // The reference state ψ(θ).
-    const psi = Statevector.fromCircuit(circuit.bind_parameters(parameterValues));
+    const psi = Statevector.fromCircuit(circuit.bindParameters(parameterValues));
 
     // ∂_i ψ ≈ (ψ_i^+ - ψ_i^-) / 2
     const dpsi = new Array(N);
@@ -231,7 +211,6 @@ export class NaturalGradient extends GradientBase {
 // A is a 2D array (n × n), b is a 1D array (n). Returns x (1D array, n).
 function _solveLinearSystem(A, b) {
   const n = A.length;
-  // Make an augmented copy.
   const M = A.map((row, i) => row.slice().concat([b[i]]));
   for (let col = 0; col < n; col++) {
     // Pivot.
@@ -241,7 +220,7 @@ function _solveLinearSystem(A, b) {
     }
     [M[col], M[maxRow]] = [M[maxRow], M[col]];
     if (Math.abs(M[col][col]) < 1e-12) {
-      // Singular — fall back to the regular gradient.
+      // Singular matrix — return the regular gradient unchanged.
       return b.slice();
     }
     // Eliminate.

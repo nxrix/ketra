@@ -1,13 +1,3 @@
-/**
- * layout.js - Layout, CouplingMap, and transpiler pass base classes.
- *
- * Layout, CouplingMap, AnalysisPass,
- * TransformationPass.
- *
- * A Layout maps virtual (circuit) qubits to physical (backend) qubits.
- * A CouplingMap describes which physical qubit pairs can have 2-qubit gates.
- */
-
 export class Layout {
   constructor(mapping = null) {
     // mapping: { physical: virtual } or { virtual: physical }
@@ -55,7 +45,6 @@ export class Layout {
   }
 
   setPhysical(phys, virtual) {
-    // Remove old mapping
     if (this._p2v.has(phys)) {
       const oldVirt = this._p2v.get(phys);
       this._v2p.delete(oldVirt);
@@ -86,17 +75,14 @@ export class Layout {
     return out;
   }
 
-  // Get all physical qubits in use
   get_physical_bits_list() {
     return Array.from(this._p2v.keys()).sort((a, b) => a - b);
   }
 
-  // Add an ancilla qubit
   add(phys, virtual) {
     this.setPhysical(phys, virtual);
   }
 
-  // Swap two physical qubits' mappings
   swap(phys1, phys2) {
     const v1 = this._p2v.get(phys1);
     const v2 = this._p2v.get(phys2);
@@ -104,7 +90,6 @@ export class Layout {
     this.setPhysical(phys2, v1);
   }
 
-  // Combine two layouts
   combine(other) {
     const result = new Layout();
     for (const [p, v] of this._p2v.entries()) result.setPhysical(p, v);
@@ -120,7 +105,7 @@ export class Layout {
 
   size() { return this._p2v.size; }
 
-  to_dict() { return this.get_physical_bits(); }
+  toDict() { return this.get_physical_bits(); }
 
   toString() {
     const pairs = [];
@@ -218,7 +203,7 @@ export class CouplingMap {
 
   get edges() { return this._edges.slice(); }
   get size() { return this._numQubits; }
-  get num_qubits() { return this._numQubits; }
+  get numQubits() { return this._numQubits; }
 
   neighbors(node) {
     return Array.from(this._graph.get(node) || []);
@@ -245,7 +230,7 @@ export class CouplingMap {
     return visited.size === this._numQubits;
   }
 
-  // Shortest path between two physical qubits (BFS)
+  // BFS shortest path between two physical qubits.
   shortestPath(a, b) {
     if (a === b) return [a];
     const visited = new Set([a]);
@@ -263,13 +248,11 @@ export class CouplingMap {
     return null;
   }
 
-  // Distance between two physical qubits
   distance(a, b) {
     const path = this.shortestPath(a, b);
     return path ? path.length - 1 : Infinity;
   }
 
-  // Get the undirected graph (each edge once)
   get_undirected_edges() {
     const seen = new Set();
     const result = [];
@@ -289,7 +272,7 @@ export class CouplingMap {
     return c;
   }
 
-  to_dict() {
+  toDict() {
     const out = {};
     for (const [k, neighbors] of this._graph.entries()) {
       out[k] = Array.from(neighbors);
@@ -298,15 +281,13 @@ export class CouplingMap {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Pass base classes
-// ---------------------------------------------------------------------------
 export class AnalysisPass {
   constructor() {
     this.requires = [];
     this.preserves = [];
-    this.analysis_name = this.constructor.name;
-    this.property_set = {};
+    this.analysisName = this.constructor.name;
+    this.propertySet = {};
   }
 
   run(dag) {

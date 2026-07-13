@@ -1,12 +1,4 @@
-/**
- * grover.js - Grover's search algorithm.
- *
- * Searches for marked items in an unstructured database using amplitude
- * amplification. Reference: Grover (1996).
- */
-
 import { QuantumCircuit } from "../core/circuit.js";
-import { Statevector } from "../quantum_info/statevector.js";
 import { simulate } from "../simulator/statevector_simulator.js";
 
 export class GroverResult {
@@ -30,11 +22,10 @@ export class Grover {
   // oracle: QuantumCircuit that marks the solution(s) by flipping phase
   // numSolutions: number of marked items (for determining iterations)
   amplify(oracle, numSolutions = 1) {
-    const numQubits = oracle.num_qubits;
+    const numQubits = oracle.numQubits;
     const N = 1 << numQubits;
     const M = numSolutions;
 
-    // Determine optimal number of iterations
     let numIters;
     if (this.iterations !== null) {
       numIters = this.iterations;
@@ -44,7 +35,6 @@ export class Grover {
       if (numIters < 1) numIters = 1;
     }
 
-    // Build Grover circuit
     const circuit = new QuantumCircuit(numQubits, numQubits);
 
     // Step 1: Initialize to uniform superposition
@@ -64,11 +54,9 @@ export class Grover {
     // Step 3: Measure
     for (let q = 0; q < numQubits; q++) circuit.measure(q, q);
 
-    // Simulate
     const result = simulate(circuit, 1024);
-    const counts = result.get_counts().to_dict();
+    const counts = result.getCounts().toDict();
 
-    // Find the most frequent measurement
     let bestKey = null, bestCount = -1;
     for (const [key, count] of Object.entries(counts)) {
       if (count > bestCount) { bestCount = count; bestKey = key; }

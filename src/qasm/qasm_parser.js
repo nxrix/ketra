@@ -1,25 +1,6 @@
-/**
- * qasm_parser.js - OpenQASM 2.0 parser.
- *
- * *
- * Implements a tokenizer + recursive descent parser for OpenQASM 2.0 supporting:
- *   - OPENQASM 2.0; declaration
- *   - include "qelib1.inc";
- *   - qreg / creg declarations
- *   - gate statements: u1, u2, u3, cx, id, x, y, z, h, s, sdg, t, tdg, rx, ry, rz,
- *     swap, ccx, cswap, ch, cy, cz, crx, cry, crz, cu1, cu3, p, r, etc.
- *   - measure q[i] -> c[j];
- *   - barrier q[...];
- *   - reset q[i];
- *   - if (c == int) gate ...;  (classical conditional)
- *   - gate definitions (custom gates)
- *
- * Returns a QuantumCircuit.
- */
-
 import { QuantumCircuit } from "./../core/circuit.js";
-import { QuantumRegister, ClassicalRegister, Qubit, Clbit } from "./../core/bit.js";
-import { Instruction, Gate, ControlledGate } from "./../core/gate.js";
+import { QuantumRegister, ClassicalRegister, Clbit } from "./../core/bit.js";
+import { Instruction } from "./../core/gate.js";
 
 class Token {
   constructor(type, value, pos) {
@@ -41,16 +22,13 @@ function tokenize(source) {
   let line = 1, col = 1;
   while (i < source.length) {
     const c = source[i];
-    // Whitespace
     if (c === " " || c === "\t") { i++; col++; continue; }
     if (c === "\n") { i++; line++; col = 1; continue; }
     if (c === "\r") { i++; continue; }
-    // Comment
     if (c === "/" && source[i + 1] === "/") {
       while (i < source.length && source[i] !== "\n") { i++; col++; }
       continue;
     }
-    // String literal
     if (c === "\"") {
       let str = "";
       i++; col++;
@@ -92,7 +70,6 @@ function tokenize(source) {
       tokens.push(new Token("NUMBER", num, { line, col }));
       continue;
     }
-    // Identifier
     if ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_") {
       let id = "";
       while (i < source.length && ((source[i] >= "a" && source[i] <= "z") ||
@@ -113,9 +90,7 @@ function tokenize(source) {
       }
       continue;
     }
-    // Punctuation and operators
     if ("()[]{};,->=+*/".indexOf(c) !== -1) {
-      // Two-character tokens
       if (c === "-" && source[i + 1] === ">") {
         tokens.push(new Token("ARROW", "->", { line, col }));
         i += 2; col += 2; continue;
@@ -133,7 +108,6 @@ function tokenize(source) {
       i++; col++;
       continue;
     }
-    // Unknown character: skip
     i++; col++;
   }
   tokens.push(new Token("EOF", null, { line, col }));
@@ -171,18 +145,15 @@ export class QASMParser {
   }
 
   parse() {
-    // OPENQASM 2.0;
     const versionTok = this.expect("KEYWORD");
     if (versionTok.value !== "OPENQASM") {
       throw new Error(`Expected OPENQASM, got ${versionTok.value}`);
     }
-    this.expect("NUMBER"); // version
+    this.expect("NUMBER");
     this.expect("SEMICOLON");
 
-    // Create empty circuit
     this.circuit = new QuantumCircuit();
 
-    // Parse statements
     while (this.peek().type !== "EOF") {
       this.parseStatement();
     }
@@ -206,7 +177,6 @@ export class QASMParser {
       }
     }
     if (t.type === "IDENT") {
-      // Gate invocation
       this.parseGateCall();
       return;
     }
@@ -214,42 +184,41 @@ export class QASMParser {
   }
 
   parseInclude() {
-    this.expect("KEYWORD"); // include
-    this.expect("STRING");  // filename
+    this.expect("KEYWORD");
+    this.expect("STRING");
     this.expect("SEMICOLON");
-    // Includes are no-ops; we assume qelib1 is built-in
+    // Includes are no-ops; we assume qelib1 is built-in.
   }
 
   parseQregDecl() {
-    this.expect("KEYWORD"); // qreg
+    this.expect("KEYWORD");
     const name = this.expect("IDENT").value;
     this.expect("LBRACKET");
     const size = parseInt(this.expect("NUMBER").value, 10);
     this.expect("RBRACKET");
     this.expect("SEMICOLON");
     const reg = new QuantumRegister(size, name);
-    this.circuit.add_register(reg);
+    this.circuit.addRegister(reg);
     this.qregs.set(name, reg);
     for (const q of reg._bits) this.allQubits.push({ reg: name, index: q.index, bit: q });
   }
 
   parseCregDecl() {
-    this.expect("KEYWORD"); // creg
+    this.expect("KEYWORD");
     const name = this.expect("IDENT").value;
     this.expect("LBRACKET");
     const size = parseInt(this.expect("NUMBER").value, 10);
     this.expect("RBRACKET");
     this.expect("SEMICOLON");
     const reg = new ClassicalRegister(size, name);
-    this.circuit.add_register(reg);
+    this.circuit.addRegister(reg);
     this.cregs.set(name, reg);
     for (const c of reg._bits) this.allClbits.push({ reg: name, index: c.index, bit: c });
   }
 
   parseGateDef() {
-    this.expect("KEYWORD"); // gate
+    this.expect("KEYWORD");
     const name = this.expect("IDENT").value;
-    // Optional parameters
     let params = [];
     if (this.accept("LBRACKET")) {
       while (this.peek().type !== "RBRACKET") {
@@ -258,7 +227,6 @@ export class QASMParser {
       }
       this.expect("RBRACKET");
     }
-    // Optional qubit arguments
     let qargs = [];
     if (this.peek().type === "IDENT") {
       while (this.peek().type === "IDENT") {
@@ -267,10 +235,8 @@ export class QASMParser {
       }
     }
     this.expect("LBRACE");
-    // Parse body (sequence of gate calls)
     const body = [];
     while (this.peek().type !== "RBRACE") {
-      // Parse a single gate call statement
       const gateName = this.expect("IDENT").value;
       let gateParams = [];
       if (this.accept("LPAREN")) {
@@ -300,15 +266,14 @@ export class QASMParser {
   }
 
   parseOpaque() {
-    this.expect("KEYWORD"); // opaque
+    this.expect("KEYWORD");
     const name = this.expect("IDENT").value;
-    // Skip params and qubits
     while (this.peek().type !== "SEMICOLON") this.next();
     this.expect("SEMICOLON");
   }
 
   parseMeasure() {
-    this.expect("KEYWORD"); // measure
+    this.expect("KEYWORD");
     const qubit = this.parseBitRef();
     this.expect("ARROW");
     const clbit = this.parseBitRef();
@@ -317,7 +282,7 @@ export class QASMParser {
   }
 
   parseBarrier() {
-    this.expect("KEYWORD"); // barrier
+    this.expect("KEYWORD");
     const qubits = [];
     if (this.peek().type === "IDENT") {
       do {
@@ -330,7 +295,7 @@ export class QASMParser {
   }
 
   parseReset() {
-    this.expect("KEYWORD"); // reset
+    this.expect("KEYWORD");
     const qubit = this.parseBitRef();
     this.expect("SEMICOLON");
     this.circuit.reset(qubit);
@@ -338,13 +303,11 @@ export class QASMParser {
 
   parseIf() {
     // if (creg[idx] == value) gate ...;
-    // We attach a classical condition to the next instruction. The
+    // Attach a classical condition to the next instruction. The
     // instruction's `condition` field is `{ register, index, value }`; the
     // simulator / statevector path is responsible for skipping the
-    // instruction when the condition is false. (The previous implementation
-    // parsed the condition and then unconditionally applied the gate,
-    // which made every `if` always succeed.)
-    this.expect("KEYWORD"); // if
+    // instruction when the condition is false.
+    this.expect("KEYWORD");
     this.expect("LPAREN");
     const cregName = this.expect("IDENT").value;
     this.expect("LBRACKET");
@@ -358,7 +321,6 @@ export class QASMParser {
     // the condition to the resulting CircuitInstruction.
     const dataLenBefore = this.circuit.data.length;
     this.parseGateCall();
-    // Attach the condition to the instruction(s) just appended.
     const creg = this.cregs.get(cregName);
     for (let i = dataLenBefore; i < this.circuit.data.length; i++) {
       const ci = this.circuit.data[i];
@@ -373,7 +335,6 @@ export class QASMParser {
 
   parseGateCall() {
     const name = this.expect("IDENT").value;
-    // Parameters
     let params = [];
     if (this.accept("LPAREN")) {
       while (this.peek().type !== "RPAREN") {
@@ -382,7 +343,6 @@ export class QASMParser {
       }
       this.expect("RPAREN");
     }
-    // Qubits
     const qargs = [];
     const cargs = [];
     while (this.peek().type === "IDENT" || this.peek().type === "KEYWORD") {
@@ -397,16 +357,12 @@ export class QASMParser {
     }
     this.expect("SEMICOLON");
 
-    // Apply the gate
     this._applyGateByName(name, params, qargs, cargs);
   }
 
   _applyGateByName(name, params, qargs, cargs) {
-    // Check custom gate definitions
     if (this.gateDefinitions.has(name)) {
-      // Apply the gate definition body, mapping qargs
       const def = this.gateDefinitions.get(name);
-      // Map def.qargs -> qargs
       const argMap = new Map();
       for (let i = 0; i < def.qargs.length && i < qargs.length; i++) {
         argMap.set(def.qargs[i], qargs[i]);
@@ -417,7 +373,6 @@ export class QASMParser {
       }
       return;
     }
-    // Built-in gates
     const n = name.toLowerCase();
     switch (n) {
       case "h": this.circuit.h(qargs[0]); break;
@@ -458,7 +413,6 @@ export class QASMParser {
       case "rzz": this.circuit.rzz(params[0], qargs[0], qargs[1]); break;
       case "rzx": this.circuit.rzx(params[0], qargs[0], qargs[1]); break;
       default:
-        // Unknown gate: create a generic Instruction and append
         const numQubits = qargs.length;
         const numClbits = cargs.length;
         const instr = new Instruction(n, numQubits, numClbits, params);
@@ -471,7 +425,6 @@ export class QASMParser {
     if (this.accept("LBRACKET")) {
       const idx = parseInt(this.expect("NUMBER").value, 10);
       this.expect("RBRACKET");
-      // Find the bit
       if (this.qregs.has(name)) {
         return this.qregs.get(name)._bits[idx];
       }
@@ -480,19 +433,16 @@ export class QASMParser {
       }
       throw new Error(`Unknown register: ${name}`);
     }
-    // Whole register reference
     if (this.qregs.has(name)) return this.qregs.get(name)._bits[0];
     if (this.cregs.has(name)) return this.cregs.get(name)._bits[0];
     throw new Error(`Unknown register: ${name}`);
   }
 
   parseExpression() {
-    // Number, possibly with arithmetic on pi
     const t = this.peek();
     if (t.type === "NUMBER") {
       this.next();
       let value = parseFloat(t.value);
-      // Handle arithmetic
       while (this.peek().type === "PLUS" || this.peek().type === "STAR" || this.peek().type === "SLASH") {
         const op = this.next().type;
         const right = this.expect("NUMBER").value;
@@ -503,7 +453,6 @@ export class QASMParser {
       return value;
     }
     if (t.type === "IDENT") {
-      // Could be 'pi'
       this.next();
       if (t.value === "pi") {
         let value = Math.PI;
@@ -515,15 +464,13 @@ export class QASMParser {
         }
         return value;
       }
-      // Parameter reference
       return t.value;
     }
     throw new Error(`QASM parse error: expected expression, got ${t.type}`);
   }
 }
 
-// Convenience function
-export function qasm2_parse(source) {
+export function qasm2Parse(source) {
   const parser = new QASMParser(source);
   return parser.parse();
 }

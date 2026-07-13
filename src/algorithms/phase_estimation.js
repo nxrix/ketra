@@ -1,12 +1,3 @@
-/**
- * phase_estimation.js - Quantum Phase Estimation (QPE) and Amplitude Estimation.
- *
- * Estimates the phase (eigenvalue) of a unitary operator. Reference: Nielsen
- * & Chuang, section 5.3. The unitary is provided as a QuantumCircuit whose
- * first qubit(s) it acts on. We implement controlled-U^(2^k) by composing the
- * unitary circuit repeatedly under a single control qubit.
- */
-
 import { QuantumCircuit } from "../core/circuit.js";
 import { Statevector } from "../quantum_info/statevector.js";
 import { ControlledGate } from "../core/gate.js";
@@ -22,28 +13,34 @@ export class PhaseEstimationResult {
 
 export class PhaseEstimation {
   constructor(options = {}) {
-    this.num_evaluation_qubits = options.num_evaluation_qubits || 3;
+    this.numEvaluationQubits = options.numEvaluationQubits || 3;
     this.sampler = options.sampler || null;
   }
 
   // Estimate the phase of a unitary.
-  // unitary: QuantumCircuit implementing U (any num_qubits >= 1).
+  // unitary: QuantumCircuit implementing U (any numQubits >= 1).
   // state_preparation: optional circuit to prepare the eigenstate on U's qubits.
   estimate(unitary, statePreparation = null) {
-    const evalQubits = this.num_evaluation_qubits;
-    const unitaryQubits = unitary.num_qubits;
+    const evalQubits = this.numEvaluationQubits;
+    const unitaryQubits = unitary.numQubits;
     const totalQubits = evalQubits + unitaryQubits;
 
     const circuit = new QuantumCircuit(totalQubits, evalQubits);
 
     // Prepare eigenstate on unitary qubits (qubits evalQubits..totalQubits-1).
-    // compose() maps other.qubits[i] -> target.qubits[ qubits[i] ] when a
-    // qubit list is provided; we map the unitary's qubit 0 to circuit qubit
-    // `evalQubits`, qubit 1 to `evalQubits+1`, etc.
+    // If statePreparation is a Statevector, convert it to an initialize
+    // instruction on the unitary qubits.
     if (statePreparation) {
-      const targetQubits = [];
-      for (let q = 0; q < unitaryQubits; q++) targetQubits.push(evalQubits + q);
-      circuit.compose(statePreparation, targetQubits, null, false, true);
+      if (statePreparation instanceof Statevector) {
+        const targetQubits = [];
+        for (let q = 0; q < unitaryQubits; q++) targetQubits.push(evalQubits + q);
+        circuit.initialize(statePreparation._data.data, targetQubits);
+      } else {
+        // statePreparation is a QuantumCircuit
+        const targetQubits = [];
+        for (let q = 0; q < unitaryQubits; q++) targetQubits.push(evalQubits + q);
+        circuit.compose(statePreparation, targetQubits, null, false, true);
+      }
     }
     // Apply Hadamard to evaluation qubits (qubits 0..evalQubits-1).
     for (let q = 0; q < evalQubits; q++) {
@@ -68,16 +65,13 @@ export class PhaseEstimation {
     // Apply inverse QFT on evaluation qubits.
     this._addInverseQFT(circuit, evalQubits);
 
-    // Measure evaluation qubits.
     for (let q = 0; q < evalQubits; q++) {
       circuit.measure(q, q);
     }
 
-    // Simulate
     const result = simulate(circuit, 1024);
-    const counts = result.get_counts().to_dict();
+    const counts = result.getCounts().toDict();
 
-    // Find the most frequent measurement
     let bestKey = null, bestCount = -1;
     for (const [key, count] of Object.entries(counts)) {
       if (count > bestCount) { bestCount = count; bestKey = key; }
@@ -105,7 +99,7 @@ export class PhaseEstimation {
     for (const ci of unitary.data) {
       const op = ci.operation;
       if (op.name === "barrier" || op.name === "measure" || op.name === "reset") continue;
-      if (typeof op.to_matrix !== "function") continue;
+      if (typeof op.toMatrix !== "function") continue;
       // Map unitary's qubits onto the target qubits in the QPE circuit.
       const mappedQubits = ci.qubits.map(q => {
         const idxInUnitary = unitary._qubit_index.get(q);
@@ -142,9 +136,7 @@ export class PhaseEstimation {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Amplitude Estimation
-// ---------------------------------------------------------------------------
 export class AmplitudeEstimationResult {
   constructor(kwargs = {}) {
     this.estimation = kwargs.estimation || 0;
@@ -167,7 +159,7 @@ export class AmplitudeEstimation {
   // measured value and m is the number of evaluation qubits.
   estimate(statePreparation, groverOperator = null) {
     const evalQubits = this.num_eval_qubits;
-    const stateQubits = statePreparation.num_qubits;
+    const stateQubits = statePreparation.numQubits;
     const totalQubits = evalQubits + stateQubits;
 
     const circuit = new QuantumCircuit(totalQubits, evalQubits);
@@ -191,15 +183,13 @@ export class AmplitudeEstimation {
     }
 
     // Apply inverse QFT on evaluation qubits
-    const pe = new PhaseEstimation({ num_evaluation_qubits: evalQubits });
+    const pe = new PhaseEstimation({ numEvaluationQubits: evalQubits });
     pe._addInverseQFT(circuit, evalQubits);
 
-    // Measure
     for (let q = 0; q < evalQubits; q++) circuit.measure(q, q);
 
-    // Simulate
     const result = simulate(circuit, 1024);
-    const counts = result.get_counts().to_dict();
+    const counts = result.getCounts().toDict();
 
     let bestKey = null, bestCount = -1;
     for (const [key, count] of Object.entries(counts)) {
@@ -224,7 +214,7 @@ export class AmplitudeEstimation {
     for (const ci of sub.data) {
       const op = ci.operation;
       if (op.name === "barrier" || op.name === "measure" || op.name === "reset") continue;
-      if (typeof op.to_matrix !== "function") continue;
+      if (typeof op.toMatrix !== "function") continue;
       const mappedQubits = ci.qubits.map(q => {
         const idx = sub._qubit_index.get(q);
         return targetQubits[idx];
@@ -238,7 +228,7 @@ export class AmplitudeEstimation {
     for (const ci of sub.data) {
       const op = ci.operation;
       if (op.name === "barrier" || op.name === "measure" || op.name === "reset") continue;
-      if (typeof op.to_matrix !== "function") continue;
+      if (typeof op.toMatrix !== "function") continue;
       const mappedQubits = ci.qubits.map(q => {
         const idx = sub._qubit_index.get(q);
         return targetQubits[idx];

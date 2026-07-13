@@ -1,10 +1,3 @@
-/**
- * scalar_op.js - ScalarOp class.
- *
- * Represents a scalar multiple of the
- * identity operator.
- */
-
 import { Complex, ComplexMatrix } from "./../math/linalg.js";
 import { Operator } from "./operator.js";
 
@@ -37,19 +30,19 @@ export class ScalarOp {
         }
       }
     }
-    return new ScalarOp(operator.num_qubits, c0);
+    return new ScalarOp(operator.numQubits, c0);
   }
 
-  get num_qubits() { return this._numQubits; }
+  get numQubits() { return this._numQubits; }
   get coeff() { return this._coeff; }
   get dim() { return 1 << this._numQubits; }
 
-  to_matrix() {
+  toMatrix() {
     return ComplexMatrix.identity(this.dim).scale(this._coeff);
   }
 
-  to_operator() {
-    return new Operator(this.to_matrix());
+  toOperator() {
+    return new Operator(this.toMatrix());
   }
 
   compose(other) {
@@ -78,7 +71,7 @@ export class ScalarOp {
   trace() { return this._coeff.scale(this.dim); }
   det() { return this._coeff.pow(this.dim); }
 
-  is_unitary(tol = 1e-9) {
+  isUnitary(tol = 1e-9) {
     return Math.abs(this._coeff.abs() - 1) < tol;
   }
 
@@ -88,16 +81,16 @@ export class ScalarOp {
     return this._coeff.equals(other._coeff, tol);
   }
 
-  apply_to_vector(vector) {
+  applyToVector(vector) {
     return vector.scale(this._coeff);
   }
 
-  expectation_value(statevector) {
+  expectationValue(statevector) {
     const norm2 = statevector.norm() ** 2;
     return this._coeff.scale(norm2);
   }
 
   toString() {
-    return `ScalarOp(${this._coeff.toString()}, num_qubits=${this._numQubits})`;
+    return `ScalarOp(${this._coeff.toString()}, numQubits=${this._numQubits})`;
   }
 }

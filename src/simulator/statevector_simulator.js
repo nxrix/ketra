@@ -1,13 +1,4 @@
-/**
- * statevector_simulator.js - A pure statevector quantum circuit simulator.
- *
- * Accepts a
- * QuantumCircuit, executes it on an internal statevector backend, returns a
- * Result object containing the final statevector and (optionally) sampled
- * measurement counts.
- */
-
-import { Complex, ComplexVector, ComplexMatrix, sampleDistribution, randomUniform } from "./../math/linalg.js";
+import { Complex, ComplexVector, sampleDistribution, randomUniform } from "./../math/linalg.js";
 import { Result, Counts } from "./../result/result.js";
 
 function _applyGateInPlace(state, gateMatrix, k, qubitIndices) {
@@ -51,7 +42,7 @@ export class StatevectorSimulator {
   constructor(options = {}) {
     this.method = options.method || "statevector";
     this.precision = options.precision || "double";
-    this.max_memory_mb = options.max_memory_mb || 8192;
+    this.maxMemoryMb = options.maxMemoryMb || 8192;
     this.initial_statevector = options.initial_statevector || null;
   }
 
@@ -59,17 +50,17 @@ export class StatevectorSimulator {
     const experiments = Array.isArray(circuit) ? circuit : [circuit];
     const results = experiments.map(c => this._runOne(c, shots, options));
     return new Result({
-      backend_name: "statevector_simulator",
-      backend_version: "1.0.0",
-      qobj_id: options.qobj_id || "qobj",
-      job_id: options.job_id || `job_${Date.now()}`,
+      backendName: "statevector_simulator",
+      backendVersion: "1.0.0",
+      qobjId: options.qobjId || "qobj",
+      jobId: options.jobId || `job_${Date.now()}`,
       success: true,
       results,
     });
   }
 
   _runOne(circuit, shots, options) {
-    const n = circuit.num_qubits;
+    const n = circuit.numQubits;
     const state = this.initial_statevector
       ? new ComplexVector(this.initial_statevector.data.slice())
       : ComplexVector.zeros(1 << n);
@@ -97,13 +88,13 @@ export class StatevectorSimulator {
         }
         continue;
       }
-      if (op.name === "if_else" || op.name === "while_loop") continue;
-      if (typeof op.to_matrix !== "function") {
+      if (op.name === "if_else" || op.name === "whileLoop") continue;
+      if (typeof op.toMatrix !== "function") {
         throw new Error(`Cannot simulate ${op.name} (no matrix)`);
       }
-      const gateMatrix = op.to_matrix();
+      const gateMatrix = op.toMatrix();
       const qubitIndices = ci.qubits.map(q => circuit._qubit_index.get(q));
-      _applyGateInPlace(state, gateMatrix, op.num_qubits, qubitIndices);
+      _applyGateInPlace(state, gateMatrix, op.numQubits, qubitIndices);
     }
 
     let counts = null;
@@ -112,8 +103,8 @@ export class StatevectorSimulator {
       const probs = state.probabilities();
       counts = {};
       memory = new Array(shots);
-      const numClbits = circuit.num_clbits;
-      const numQubits = circuit.num_qubits;
+      const numClbits = circuit.numClbits;
+      const numQubits = circuit.numQubits;
       for (let s = 0; s < shots; s++) {
         const idx = sampleDistribution(probs, options.rng);
         const bits = new Array(numClbits).fill("0");

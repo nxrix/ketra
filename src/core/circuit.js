@@ -1,11 +1,3 @@
-/**
- * circuit.js - QuantumCircuit implementation.
- *
- * QuantumCircuit implementation: registers, append/extend, barrier,
- * measure, reset, classical feed-forward, plus utility methods (depth, count_ops,
- * copy, compose, control, inverse, draw).
- */
-
 import { QuantumRegister, ClassicalRegister, Qubit, Clbit } from "./bit.js";
 import { Instruction, Gate, ControlledGate } from "./gate.js";
 import { Parameter } from "./parameter.js";
@@ -87,19 +79,19 @@ export class QuantumCircuit {
     if (regs.length > 0 && regs.every(r => typeof r === "number")) {
       const nQ = regs[0];
       const nC = regs.length > 1 ? regs[1] : 0;
-      if (nQ > 0) this.add_register(new QuantumRegister(nQ, "q"));
-      if (nC > 0) this.add_register(new ClassicalRegister(nC, "c"));
+      if (nQ > 0) this.addRegister(new QuantumRegister(nQ, "q"));
+      if (nC > 0) this.addRegister(new ClassicalRegister(nC, "c"));
       return;
     }
 
     for (const r of regs) {
-      if (r instanceof QuantumRegister) this.add_register(r);
-      else if (r instanceof ClassicalRegister) this.add_register(r);
-      else if (typeof r === "number") this.add_register(new QuantumRegister(r));
+      if (r instanceof QuantumRegister) this.addRegister(r);
+      else if (r instanceof ClassicalRegister) this.addRegister(r);
+      else if (typeof r === "number") this.addRegister(new QuantumRegister(r));
       else if (Array.isArray(r)) {
         for (const sub of r) {
-          if (sub instanceof QuantumRegister) this.add_register(sub);
-          else if (sub instanceof ClassicalRegister) this.add_register(sub);
+          if (sub instanceof QuantumRegister) this.addRegister(sub);
+          else if (sub instanceof ClassicalRegister) this.addRegister(sub);
           else throw new TypeError("Invalid register in list");
         }
       }
@@ -107,7 +99,7 @@ export class QuantumCircuit {
     }
   }
 
-  add_register(register) {
+  addRegister(register) {
     if (register instanceof QuantumRegister) {
       this.qregs.push(register);
       for (const b of register._bits) {
@@ -121,32 +113,32 @@ export class QuantumCircuit {
         this.clbits.push(b);
       }
     } else {
-      throw new TypeError("add_register requires QuantumRegister or ClassicalRegister");
+      throw new TypeError("addRegister requires QuantumRegister or ClassicalRegister");
     }
     return register;
   }
 
-  get num_qubits() { return this.qubits.length; }
-  get num_clbits() { return this.clbits.length; }
+  get numQubits() { return this.qubits.length; }
+  get numClbits() { return this.clbits.length; }
   get nqubits() { return this.qubits.length; }
   get nclbits() { return this.clbits.length; }
 
-  qubit_indices(qubit) {
+  qubitIndices(qubit) {
     if (qubit instanceof Qubit) {
       const i = this._qubit_index.get(qubit);
       if (i === undefined) throw new Error("Qubit not in circuit");
       return i;
     }
-    throw new TypeError("qubit_indices expects a Qubit");
+    throw new TypeError("qubitIndices expects a Qubit");
   }
 
-  clbit_indices(clbit) {
+  clbitIndices(clbit) {
     if (clbit instanceof Clbit) {
       const i = this._clbit_index.get(clbit);
       if (i === undefined) throw new Error("Clbit not in circuit");
       return i;
     }
-    throw new TypeError("clbit_indices expects a Clbit");
+    throw new TypeError("clbitIndices expects a Clbit");
   }
 
   _resolveQubits(qargs) {
@@ -181,11 +173,11 @@ export class QuantumCircuit {
     }
     const qubits = this._resolveQubits(this._normalizeArgs(qargs));
     const clbits = this._resolveClbits(this._normalizeArgs(cargs));
-    if (qubits.length !== instruction.num_qubits) {
-      throw new Error(`Qubit count mismatch: gate ${instruction.name} expects ${instruction.num_qubits} but got ${qubits.length}`);
+    if (qubits.length !== instruction.numQubits) {
+      throw new Error(`Qubit count mismatch: gate ${instruction.name} expects ${instruction.numQubits} but got ${qubits.length}`);
     }
-    if (clbits.length !== instruction.num_clbits) {
-      throw new Error(`Clbit count mismatch: gate ${instruction.name} expects ${instruction.num_clbits} but got ${clbits.length}`);
+    if (clbits.length !== instruction.numClbits) {
+      throw new Error(`Clbit count mismatch: gate ${instruction.name} expects ${instruction.numClbits} but got ${clbits.length}`);
     }
     const ci = new CircuitInstruction(instruction, qubits, clbits);
     this.data.push(ci);
@@ -256,12 +248,12 @@ export class QuantumCircuit {
     const clbitMap = new Map();
     for (const r of this.qregs) {
       const newReg = new QuantumRegister(r.size, r.name);
-      c.add_register(newReg);
+      c.addRegister(newReg);
       for (let i = 0; i < r.size; i++) qubitMap.set(r._bits[i], newReg._bits[i]);
     }
     for (const r of this.cregs) {
       const newReg = new ClassicalRegister(r.size, r.name);
-      c.add_register(newReg);
+      c.addRegister(newReg);
       for (let i = 0; i < r.size; i++) clbitMap.set(r._bits[i], newReg._bits[i]);
     }
     c.data = this.data.map(ci => {
@@ -270,7 +262,7 @@ export class QuantumCircuit {
       const newClbits = ci.clbits.map(cl => clbitMap.get(cl) || cl);
       return new CircuitInstruction(newOp, newQubits, newClbits);
     });
-    c.global_phase = this.global_phase;
+    c.globalPhase = this.globalPhase;
     c.name = this.name;
     c.metadata = this.metadata;
     return c;
@@ -342,7 +334,6 @@ export class QuantumCircuit {
   }
   cu(theta, phi, lam, gamma, control, target) {
     // Use the dedicated 4-parameter CU gate builder so that the global
-    // phase γ is correctly incorporated into the unitary. The previous
     // implementation built a ControlledGate around a 3-parameter U gate,
     // silently dropping γ.
     if (!_paramBuilders.CU) {
@@ -503,8 +494,8 @@ export class QuantumCircuit {
   }
 
   // Convert this circuit to a reusable Gate (with the same qubit count).
-  to_gate(label = null) {
-    const g = new Gate(this.name || "circuit", this.num_qubits, []);
+  toGate(label = null) {
+    const g = new Gate(this.name || "circuit", this.numQubits, []);
     g.label = label;
     g._matrixBuilder = () => {
       // Build the unitary by composing each instruction's matrix.
@@ -522,8 +513,8 @@ export class QuantumCircuit {
   }
 
   // Convert this circuit to an Instruction (can have clbits).
-  to_instruction(label = null) {
-    const instr = new Instruction(this.name || "circuit", this.num_qubits, this.num_clbits, []);
+  toInstruction(label = null) {
+    const instr = new Instruction(this.name || "circuit", this.numQubits, this.numClbits, []);
     instr.label = label;
     instr._matrixBuilder = () => {
       if (!_OperatorClass) {
@@ -542,9 +533,9 @@ export class QuantumCircuit {
     if (n < 0) throw new Error("repeat: n must be non-negative");
     const c = new QuantumCircuit();
     // Copy registers
-    for (const r of this.qregs) c.add_register(new QuantumRegister(r.size, r.name));
-    for (const r of this.cregs) c.add_register(new ClassicalRegister(r.size, r.name));
-    c.global_phase = this.global_phase;
+    for (const r of this.qregs) c.addRegister(new QuantumRegister(r.size, r.name));
+    for (const r of this.cregs) c.addRegister(new ClassicalRegister(r.size, r.name));
+    c.globalPhase = this.globalPhase;
     c.name = this.name;
     // Copy qubit/clbit mappings: this.qubits[i] -> c.qubits[i]
     const qMap = new Map();
@@ -594,8 +585,8 @@ export class QuantumCircuit {
   }
 
   // Add a global phase (radians).
-  set global_phase(value) { this._global_phase = value; }
-  get global_phase() { return this._global_phase || 0; }
+  set globalPhase(value) { this._global_phase = value; }
+  get globalPhase() { return this._global_phase || 0; }
 
   // Measurement and friends
   measure(qubit, clbit) {
@@ -612,10 +603,10 @@ export class QuantumCircuit {
     return instructions.length === 1 ? instructions[0] : instructions;
   }
 
-  measure_all(inplace = true) {
+  measureAll(inplace = true) {
     const target = inplace ? this : this.copy();
     if (target.clbits.length === 0) {
-      target.add_register(new ClassicalRegister(target.qubits.length));
+      target.addRegister(new ClassicalRegister(target.qubits.length));
     }
     for (let i = 0; i < target.qubits.length; i++) {
       target.measure(target.qubits[i], target.clbits[i]);
@@ -623,12 +614,10 @@ export class QuantumCircuit {
     return target;
   }
 
-  measure_active(inplace = true) {
+  measureActive(inplace = true) {
     // Add measurements for every qubit that participates in at least one
     // gate (excluding barriers, which don't count as "active" for this
-    // purpose). The previous implementation only inspected ci.qubits[0],
-    // so multi-qubit gates only marked the first operand as active —
-    // qubits 1, 2, ... of any 2+ qubit gate were left unmeasured.
+    // purpose). All qubits of multi-qubit gates are inspected.
     const target = inplace ? this : this.copy();
     const active = new Set();
     for (const ci of target.data) {
@@ -638,7 +627,7 @@ export class QuantumCircuit {
     const activeBits = target.qubits.filter(q => active.has(q));
     if (activeBits.length === 0) return target;
     const startClbit = target.clbits.length;
-    target.add_register(new ClassicalRegister(activeBits.length));
+    target.addRegister(new ClassicalRegister(activeBits.length));
     activeBits.forEach((q, i) => target.measure(q, target.clbits[startClbit + i]));
     return target;
   }
@@ -667,20 +656,20 @@ export class QuantumCircuit {
     return this.append(d, qubit);
   }
 
-  if_test(condition, true_predicate, false_predicate = null) {
+  ifTest(condition, true_predicate, false_predicate = null) {
     const instr = new Instruction("if_else", 0, 0, [condition, true_predicate, false_predicate]);
     this.data.push(new CircuitInstruction(instr, [], []));
     return instr;
   }
 
-  while_loop(condition, body, qubits, clbits) {
-    const instr = new Instruction("while_loop", 0, 0, [condition, body]);
+  whileLoop(condition, body, qubits, clbits) {
+    const instr = new Instruction("whileLoop", 0, 0, [condition, body]);
     this.data.push(new CircuitInstruction(instr, [], []));
     return instr;
   }
 
   // Parameter binding
-  bind_parameters(values) {
+  bindParameters(values) {
     const c = this.copy();
     c.data = c.data.map(ci => {
       const newOp = ci.operation.copy();
@@ -698,17 +687,11 @@ export class QuantumCircuit {
   get parameters() {
     // Collect every (leaf) Parameter referenced by any instruction in the
     // circuit. Both Parameter and ParameterExpression expose `parameters`
-    // as a getter (a Set), NOT as a method — the previous implementation
-    // only collected parameters when `typeof p.parameters === "function"`,
-    // which was always false, so parameterized circuits built with
-    // ParameterExpression (e.g. `param.mul(2)`) silently reported zero
-    // parameters. That broke VQE/QAOA, which rely on `circuit.parameters`
-    // to size the parameter vector.
-    //
-    // We accept either a getter (Set) or a method (returns Set), and we
-    // only add leaf Parameters (not ParameterExpression intermediates) to
-    // match qiskit's convention: `circuit.parameters` is the set of
-    // unbound Parameters that need values supplied to `bind_parameters`.
+    // as a getter (a Set), NOT as a method. We accept either a getter
+    // (Set) or a method (returns Set), and we only add leaf Parameters
+    // (not ParameterExpression intermediates) to match qiskit's convention:
+    // `circuit.parameters` is the set of unbound Parameters that need
+    // values supplied to `bindParameters`.
     const set = new Set();
     const seen = [];
     for (const ci of this.data) {
@@ -764,7 +747,7 @@ export class QuantumCircuit {
     return maxDepth;
   }
 
-  count_ops() {
+  countOps() {
     const counts = {};
     for (const ci of this.data) {
       counts[ci.operation.name] = (counts[ci.operation.name] || 0) + 1;
@@ -772,20 +755,20 @@ export class QuantumCircuit {
     return counts;
   }
 
-  num_nonlocal_gates() {
+  numNonlocalGates() {
     let n = 0;
     for (const ci of this.data) {
-      if (ci.operation.num_qubits > 1 && ci.operation.name !== "barrier") n++;
+      if (ci.operation.numQubits > 1 && ci.operation.name !== "barrier") n++;
     }
     return n;
   }
 
-  num_tensor_factors() {
+  numTensorFactors() {
     const parent = new Array(this.qubits.length).fill(0).map((_, i) => i);
     const find = (x) => parent[x] === x ? x : (parent[x] = find(parent[x]));
     const union = (a, b) => { parent[find(a)] = find(b); };
     for (const ci of this.data) {
-      if (ci.operation.num_qubits < 2) continue;
+      if (ci.operation.numQubits < 2) continue;
       const idx = ci.qubits.map(q => this._qubit_index.get(q));
       for (let i = 1; i < idx.length; i++) union(idx[0], idx[i]);
     }
@@ -808,7 +791,7 @@ export class QuantumCircuit {
   }
 
   // Transforms
-  reverse_ops() {
+  reverseOps() {
     const c = this.copy();
     c.data.reverse();
     return c;
@@ -823,7 +806,7 @@ export class QuantumCircuit {
     return c;
   }
 
-  remove_final_measurements(inplace = false) {
+  removeFinalMeasurements(inplace = false) {
     const target = inplace ? this : this.copy();
     let lastNonMeasure = -1;
     for (let i = 0; i < target.data.length; i++) {
@@ -836,7 +819,7 @@ export class QuantumCircuit {
   // Drawing - lazy-loaded to avoid circular imports
   draw(output = "text", kwargs) {
     // The visualization module hooks into QuantumCircuit via a registration
-    // function. If not registered, fall back to the inline ASCII renderer.
+    // function. If not registered, use the inline ASCII renderer.
     if (_drawHook) {
       return _drawHook(this, output, kwargs);
     }
@@ -861,7 +844,7 @@ function _mkParamGate(name, numQubits, params, numClbits) {
 
 function _fallbackDraw(circuit) {
   const lines = [];
-  lines.push(`QuantumCircuit "${circuit.name}" (qubits=${circuit.num_qubits}, clbits=${circuit.num_clbits})`);
+  lines.push(`QuantumCircuit "${circuit.name}" (qubits=${circuit.numQubits}, clbits=${circuit.numClbits})`);
   for (const ci of circuit.data) {
     const qs = ci.qubits.map(q => q.toString()).join(",");
     const cs = ci.clbits.map(c => c.toString()).join(",");
