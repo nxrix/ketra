@@ -1,14 +1,14 @@
 # Ketra
 
 [![npm](https://img.shields.io/npm/v/@nxrix/ketra?color=cb0000)](https://www.npmjs.com/package/@nxrix/ketra)
-[![Minzipped Size](https://img.shields.io/bundlejs/size/@nxrix/ketra)](https://bundlephobia.com/package/@nxrix/ketra)
-[![Downloads](https://img.shields.io/npm/dm/@nxrix/ketra)](https://www.npmjs.com/package/@nxrix/ketra)
+[![Minzipped Size](https://img.shields.io/bundlejs/size/@nxrix/ketra?color=86f)](https://bundlephobia.com/package/@nxrix/ketra)
+[![License](https://img.shields.io/npm/l/@nxrix/ketra?color=86f)](LICENSE)
+[![Downloads](https://img.shields.io/npm/dm/@nxrix/ketra?color=cb0000)](https://www.npmjs.com/package/@nxrix/ketra)
+[![jsDelivr](https://data.jsdelivr.com/v1/package/npm/@nxrix/ketra/badge?style=rounded)](https://www.jsdelivr.com/package/npm/@nxrix/ketra)
 [![GitHub Issues](https://img.shields.io/github/issues/nxrix/ketra)](https://github.com/nxrix/ketra/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/nxrix/ketra?style=social)](https://github.com/nxrix/ketra)
 <!--
 [![Minzipped Size](https://badgen.net/bundlephobia/minzip/@nxrix/ketra)](https://bundlephobia.com/package/@nxrix/ketra)
-[![jsDelivr](https://data.jsdelivr.com/v1/package/npm/@nxrix/ketra/badge?style=rounded)](https://www.jsdelivr.com/package/npm/@nxrix/ketra)
-[![License](https://img.shields.io/npm/l/@nxrix/ketra)](LICENSE)
 -->
 
 A JavaScript quantum computing framework inspired by Qiskit.
@@ -61,7 +61,7 @@ console.log(result.getCounts().toDict());
 console.log(qc.draw());
 ```
 Output:
-```
+```js
 { "00": ~512, "11": ~512 }
      ┌───┐     ┌─┐    
 q_0: ┤ H ├──■──┤M├─── 
@@ -85,7 +85,7 @@ const result = grover.amplify(oracle, 1);
 console.log(result.measurement);
 ``````
 Output:
-```
+```js
 { "11": 1024 }
 ```
 
@@ -114,7 +114,7 @@ console.log(result.optimalValue);
 console.log(result.optimalParameters);
 ```
 Output:
-```
-~ -1
+```js
+-1
 { theta: ~3.14159 }
 ```
