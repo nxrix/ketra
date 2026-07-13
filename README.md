@@ -35,13 +35,13 @@ A JavaScript quantum computing framework inspired by Qiskit.
 
 ## Quick start
 
-```
+```bash
 npm install "@nxrix/ketra"
 ```
 or
 ```html
 <script type="module">
-  import * as ketra from "https://cdn.jsdelivr.net/npm/@nxrix/ketra@1.3.0/+esm";
+  import * as ketra from "https://cdn.jsdelivr.net/npm/@nxrix/ketra@1.3.1/+esm";
 </script>
 ```
 
@@ -83,6 +83,10 @@ oracle.cz(0, 1);
 const grover = new Grover();
 const result = grover.amplify(oracle, 1);
 console.log(result.measurement);
+``````
+Output:
+```
+{ "11": 1024 }
 ```
 
 ### Variational Quantum Eigensolver (VQE)
@@ -108,4 +112,9 @@ const vqe = new VQE({
 const result = vqe.computeMinimumEigenvalue(hamiltonian);
 console.log(result.optimalValue);
 console.log(result.optimalParameters);
+```
+Output:
+```
+~ -1
+{ theta: ~3.14159 }
 ```
