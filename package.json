@@ -6,7 +6,7 @@
   "main": "./dist/ketra.js",
   "module": "./dist/ketra.js",
   "exports": {
-    ".": "./dist/ketra.js",
+    ".": "./dist/ketra.js"
   },
   "browser": "./dist/ketra.js",
   "unpkg": "./dist/ketra.min.js",
