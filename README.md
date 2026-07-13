@@ -109,4 +109,3 @@ const result = vqe.computeMinimumEigenvalue(hamiltonian);
 console.log(result.optimalValue);
 console.log(result.optimalParameters);
 ```
-```
