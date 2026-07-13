@@ -8,8 +8,7 @@ const common = {
   entryPoints: ["src/index.js"],
   bundle: true,
   format: "esm",
-  banner: { js: banner },
-  sourcemap: true,
+  banner: { js: banner }
 };
 
 await build({
