@@ -1,6 +1,6 @@
 # Ketra
 
-[![npm](https://img.shields.io/npm/v/@nxrix/ketra?color=cb0000)](https://www.npmjs.com/package/@nxrix/ketra)
+[![npm](https://img.shields.io/npm/v/@nxrix/ketra?logo=npm&color=cb0000)](https://www.npmjs.com/package/@nxrix/ketra)
 [![Minzipped Size](https://img.shields.io/bundlejs/size/@nxrix/ketra?color=86f)](https://bundlephobia.com/package/@nxrix/ketra)
 [![License](https://img.shields.io/npm/l/@nxrix/ketra?color=86f)](LICENSE)
 [![Downloads](https://img.shields.io/npm/dm/@nxrix/ketra?color=cb0000)](https://www.npmjs.com/package/@nxrix/ketra)
