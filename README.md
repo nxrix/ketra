@@ -48,15 +48,13 @@ or
 ### Bell State
 
 ```js
-import { QuantumCircuit, simulate } from "@nxrix/ketra";
-
-const qc = new QuantumCircuit(2, 2);
+const qc = new ketra.QuantumCircuit(2, 2);
 qc.h(0);
 qc.cx(0, 1);
 qc.measure(0, 0);
 qc.measure(1, 1);
 
-const result = simulate(qc, 1024);
+const result = ketra.simulate(qc, 1024);
 console.log(result.getCounts().toDict());
 console.log(qc.draw());
 ```
@@ -75,12 +73,10 @@ c: 2/═══════════╩══╩═
 ### Grover's Search
 
 ```js
-import { QuantumCircuit, Grover } from "@nxrix/ketra";
-
-const oracle = new QuantumCircuit(2);
+const oracle = new ketra.QuantumCircuit(2);
 oracle.cz(0, 1);
 
-const grover = new Grover();
+const grover = new ketra.Grover();
 const result = grover.amplify(oracle, 1);
 console.log(result.measurement);
 ``````
@@ -92,20 +88,15 @@ Output:
 ### Variational Quantum Eigensolver (VQE)
 
 ```js
-import {
-  QuantumCircuit, Parameter, VQE, GradientDescent,
-  SparsePauliOp,
-} from "@nxrix/ketra";
+const hamiltonian = ketra.SparsePauliOp.fromList([["Z", 1.0]]);
 
-const hamiltonian = SparsePauliOp.fromList([["Z", 1.0]]);
-
-const ansatz = new QuantumCircuit(1);
-const theta = new Parameter("theta");
+const ansatz = new ketra.QuantumCircuit(1);
+const theta = new ketra.Parameter("theta");
 ansatz.ry(theta, 0);
 
-const vqe = new VQE({
+const vqe = new ketra.VQE({
   ansatz,
-  optimizer: new GradientDescent({ learningRate: 0.5, maxIter: 50 }),
+  optimizer: new ketra.GradientDescent({ learningRate: 0.5, maxIter: 50 }),
   initialPoint: [0.1],
 });
 
