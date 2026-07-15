@@ -57,7 +57,8 @@
     "testEnvironment": "node",
     "collectCoverageFrom": [
       "src/**/*.js",
-      "!src/**/index.js"
+      "!src/**/index.js",
+      "!src/visualization/**"
     ],
     "coverageDirectory": "coverage",
     "coverageReporters": [
